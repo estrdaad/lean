@@ -1,47 +1,167 @@
 <!doctype html>
 <html lang="ar" dir="rtl">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#17211e">
-  <meta name="description" content="اقرأ كتاب الشركة الناشئة المرنة لإريك ريس، كاملًا كما ورد في ملف PDF المرفق.">
-  <title>الشركة الناشئة المرنة — إريك ريس</title>
-  <style>
-    :root { color-scheme: light; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
-    * { box-sizing: border-box; }
-    html, body { width: 100%; height: 100%; margin: 0; }
-    body { display: flex; flex-direction: column; background: #17211e; color: #f5f7f6; }
-    header { min-height: 68px; display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .7rem clamp(1rem, 4vw, 3rem); background: #fff; color: #17211e; }
-    .book-title { min-width: 0; }
-    h1 { margin: 0; font-size: clamp(1rem, 2.3vw, 1.35rem); line-height: 1.4; }
-    .byline { margin: .1rem 0 0; color: #59645f; font-size: .9rem; }
-    .open-pdf { flex: 0 0 auto; border-radius: 999px; padding: .58rem 1rem; background: #176c59; color: #fff; text-decoration: none; font-size: .9rem; }
-    .open-pdf:hover, .open-pdf:focus-visible { background: #105342; }
-    main { flex: 1; min-height: 0; padding: .65rem clamp(.25rem, 2vw, 1rem) 0; }
-    iframe { display: block; width: 100%; height: 100%; border: 0; border-radius: .65rem .65rem 0 0; background: #fff; }
-    .fallback { padding: 1rem; text-align: center; color: #fff; }
-    .fallback a { color: #a9e4d3; }
-    @media (max-width: 520px) {
-      header { min-height: 60px; padding-inline: .8rem; }
-      .byline { font-size: .78rem; }
-      .open-pdf { padding: .5rem .75rem; font-size: .8rem; }
-      main { padding: .35rem .2rem 0; }
-      iframe { border-radius: .45rem .45rem 0 0; }
-    }
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#f4f1e9">
+<meta name="description" content="كتاب الشركة الناشئة المرنة لإريك ريس، معروض صفحة بصفحة من ملف الكتاب الأصلي.">
+<title>الشركة الناشئة المرنة — إريك ريس</title>
+<style>
+:root{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#202522;background:#f4f1e9}*{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:5.2rem}body{margin:0}.topbar{position:sticky;top:0;z-index:5;display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.7rem clamp(.8rem,3vw,2rem);background:#fff;box-shadow:0 2px 12px #20252218}.title{min-width:0}h1{font-size:clamp(1rem,2vw,1.3rem);line-height:1.35;margin:0}.byline{margin:.12rem 0 0;color:#626a65;font-size:.86rem}.actions{display:flex;align-items:center;gap:.65rem;white-space:nowrap}.count{color:#626a65;font-size:.85rem}.pdf-link{display:inline-block;padding:.56rem .9rem;border-radius:999px;background:#176c59;color:white;text-decoration:none;font-size:.88rem}.pdf-link:hover,.pdf-link:focus-visible{background:#105342}.pages{max-width:960px;margin:0 auto;padding:1rem clamp(.35rem,2vw,1rem) 4rem}.page{position:relative;margin:0 auto 1.25rem;background:white;box-shadow:0 3px 16px #18201c20;scroll-margin-top:5rem}.page img{display:block;width:100%;height:auto}.page-number{position:absolute;bottom:.45rem;left:.5rem;min-width:1.7rem;padding:.12rem .35rem;border-radius:1rem;background:#ffffffdc;color:#444;font-size:.78rem;text-align:center}.back-top{position:fixed;bottom:1rem;left:1rem;z-index:6;display:grid;place-items:center;width:2.8rem;height:2.8rem;border-radius:50%;background:#176c59;color:#fff;text-decoration:none;font-size:1.2rem;box-shadow:0 3px 12px #0003}@media(max-width:520px){.topbar{padding:.55rem .65rem}.byline{font-size:.72rem}.actions{gap:.35rem}.count{font-size:.7rem}.pdf-link{padding:.48rem .62rem;font-size:.75rem}.pages{padding:.55rem .2rem 3rem}.page{margin-bottom:.7rem}}
+</style>
 </head>
-<body>
-  <header>
-    <div class="book-title">
-      <h1>الشركة الناشئة المرنة</h1>
-      <p class="byline">إريك ريس · النص والرسوم والجداول من ملف الكتاب</p>
-    </div>
-    <a class="open-pdf" href="lean-startup.pdf" target="_blank" rel="noopener">فتح ملف الكتاب</a>
-  </header>
-  <main aria-label="قارئ الكتاب">
-    <iframe title="كتاب الشركة الناشئة المرنة بصيغة PDF" src="lean-startup.pdf#view=FitH&amp;toolbar=1&amp;navpanes=0">
-      <p class="fallback">تعذر عرض الكتاب داخل الصفحة. <a href="lean-startup.pdf">افتح ملف PDF</a>.</p>
-    </iframe>
-  </main>
-</body>
-</html>
+<body id="top">
+<header class="topbar"><div class="title"><h1>الشركة الناشئة المرنة</h1><p class="byline">إريك ريس · قراءة مصوّرة مطابقة لصفحات الملف</p></div><nav class="actions" aria-label="أدوات القراءة"><span class="count">150 صفحة</span><a class="pdf-link" href="lean-startup.pdf" target="_blank" rel="noopener">ملف PDF الأصلي</a></nav></header>
+<main class="pages" aria-label="صفحات الكتاب">
+<article class="page" id="page-1" aria-label="الصفحة 1"><img src="book-pages/page-001.jpg" alt="صفحة 1 من كتاب الشركة الناشئة المرنة" loading="eager" decoding="async"><span class="page-number">1</span></article>
+<article class="page" id="page-2" aria-label="الصفحة 2"><img src="book-pages/page-002.jpg" alt="صفحة 2 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">2</span></article>
+<article class="page" id="page-3" aria-label="الصفحة 3"><img src="book-pages/page-003.jpg" alt="صفحة 3 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">3</span></article>
+<article class="page" id="page-4" aria-label="الصفحة 4"><img src="book-pages/page-004.jpg" alt="صفحة 4 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">4</span></article>
+<article class="page" id="page-5" aria-label="الصفحة 5"><img src="book-pages/page-005.jpg" alt="صفحة 5 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">5</span></article>
+<article class="page" id="page-6" aria-label="الصفحة 6"><img src="book-pages/page-006.jpg" alt="صفحة 6 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">6</span></article>
+<article class="page" id="page-7" aria-label="الصفحة 7"><img src="book-pages/page-007.jpg" alt="صفحة 7 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">7</span></article>
+<article class="page" id="page-8" aria-label="الصفحة 8"><img src="book-pages/page-008.jpg" alt="صفحة 8 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">8</span></article>
+<article class="page" id="page-9" aria-label="الصفحة 9"><img src="book-pages/page-009.jpg" alt="صفحة 9 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">9</span></article>
+<article class="page" id="page-10" aria-label="الصفحة 10"><img src="book-pages/page-010.jpg" alt="صفحة 10 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">10</span></article>
+<article class="page" id="page-11" aria-label="الصفحة 11"><img src="book-pages/page-011.jpg" alt="صفحة 11 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">11</span></article>
+<article class="page" id="page-12" aria-label="الصفحة 12"><img src="book-pages/page-012.jpg" alt="صفحة 12 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">12</span></article>
+<article class="page" id="page-13" aria-label="الصفحة 13"><img src="book-pages/page-013.jpg" alt="صفحة 13 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">13</span></article>
+<article class="page" id="page-14" aria-label="الصفحة 14"><img src="book-pages/page-014.jpg" alt="صفحة 14 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">14</span></article>
+<article class="page" id="page-15" aria-label="الصفحة 15"><img src="book-pages/page-015.jpg" alt="صفحة 15 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">15</span></article>
+<article class="page" id="page-16" aria-label="الصفحة 16"><img src="book-pages/page-016.jpg" alt="صفحة 16 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">16</span></article>
+<article class="page" id="page-17" aria-label="الصفحة 17"><img src="book-pages/page-017.jpg" alt="صفحة 17 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">17</span></article>
+<article class="page" id="page-18" aria-label="الصفحة 18"><img src="book-pages/page-018.jpg" alt="صفحة 18 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">18</span></article>
+<article class="page" id="page-19" aria-label="الصفحة 19"><img src="book-pages/page-019.jpg" alt="صفحة 19 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">19</span></article>
+<article class="page" id="page-20" aria-label="الصفحة 20"><img src="book-pages/page-020.jpg" alt="صفحة 20 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">20</span></article>
+<article class="page" id="page-21" aria-label="الصفحة 21"><img src="book-pages/page-021.jpg" alt="صفحة 21 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">21</span></article>
+<article class="page" id="page-22" aria-label="الصفحة 22"><img src="book-pages/page-022.jpg" alt="صفحة 22 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">22</span></article>
+<article class="page" id="page-23" aria-label="الصفحة 23"><img src="book-pages/page-023.jpg" alt="صفحة 23 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">23</span></article>
+<article class="page" id="page-24" aria-label="الصفحة 24"><img src="book-pages/page-024.jpg" alt="صفحة 24 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">24</span></article>
+<article class="page" id="page-25" aria-label="الصفحة 25"><img src="book-pages/page-025.jpg" alt="صفحة 25 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">25</span></article>
+<article class="page" id="page-26" aria-label="الصفحة 26"><img src="book-pages/page-026.jpg" alt="صفحة 26 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">26</span></article>
+<article class="page" id="page-27" aria-label="الصفحة 27"><img src="book-pages/page-027.jpg" alt="صفحة 27 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">27</span></article>
+<article class="page" id="page-28" aria-label="الصفحة 28"><img src="book-pages/page-028.jpg" alt="صفحة 28 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">28</span></article>
+<article class="page" id="page-29" aria-label="الصفحة 29"><img src="book-pages/page-029.jpg" alt="صفحة 29 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">29</span></article>
+<article class="page" id="page-30" aria-label="الصفحة 30"><img src="book-pages/page-030.jpg" alt="صفحة 30 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">30</span></article>
+<article class="page" id="page-31" aria-label="الصفحة 31"><img src="book-pages/page-031.jpg" alt="صفحة 31 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">31</span></article>
+<article class="page" id="page-32" aria-label="الصفحة 32"><img src="book-pages/page-032.jpg" alt="صفحة 32 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">32</span></article>
+<article class="page" id="page-33" aria-label="الصفحة 33"><img src="book-pages/page-033.jpg" alt="صفحة 33 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">33</span></article>
+<article class="page" id="page-34" aria-label="الصفحة 34"><img src="book-pages/page-034.jpg" alt="صفحة 34 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">34</span></article>
+<article class="page" id="page-35" aria-label="الصفحة 35"><img src="book-pages/page-035.jpg" alt="صفحة 35 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">35</span></article>
+<article class="page" id="page-36" aria-label="الصفحة 36"><img src="book-pages/page-036.jpg" alt="صفحة 36 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">36</span></article>
+<article class="page" id="page-37" aria-label="الصفحة 37"><img src="book-pages/page-037.jpg" alt="صفحة 37 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">37</span></article>
+<article class="page" id="page-38" aria-label="الصفحة 38"><img src="book-pages/page-038.jpg" alt="صفحة 38 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">38</span></article>
+<article class="page" id="page-39" aria-label="الصفحة 39"><img src="book-pages/page-039.jpg" alt="صفحة 39 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">39</span></article>
+<article class="page" id="page-40" aria-label="الصفحة 40"><img src="book-pages/page-040.jpg" alt="صفحة 40 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">40</span></article>
+<article class="page" id="page-41" aria-label="الصفحة 41"><img src="book-pages/page-041.jpg" alt="صفحة 41 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">41</span></article>
+<article class="page" id="page-42" aria-label="الصفحة 42"><img src="book-pages/page-042.jpg" alt="صفحة 42 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">42</span></article>
+<article class="page" id="page-43" aria-label="الصفحة 43"><img src="book-pages/page-043.jpg" alt="صفحة 43 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">43</span></article>
+<article class="page" id="page-44" aria-label="الصفحة 44"><img src="book-pages/page-044.jpg" alt="صفحة 44 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">44</span></article>
+<article class="page" id="page-45" aria-label="الصفحة 45"><img src="book-pages/page-045.jpg" alt="صفحة 45 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">45</span></article>
+<article class="page" id="page-46" aria-label="الصفحة 46"><img src="book-pages/page-046.jpg" alt="صفحة 46 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">46</span></article>
+<article class="page" id="page-47" aria-label="الصفحة 47"><img src="book-pages/page-047.jpg" alt="صفحة 47 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">47</span></article>
+<article class="page" id="page-48" aria-label="الصفحة 48"><img src="book-pages/page-048.jpg" alt="صفحة 48 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">48</span></article>
+<article class="page" id="page-49" aria-label="الصفحة 49"><img src="book-pages/page-049.jpg" alt="صفحة 49 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">49</span></article>
+<article class="page" id="page-50" aria-label="الصفحة 50"><img src="book-pages/page-050.jpg" alt="صفحة 50 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">50</span></article>
+<article class="page" id="page-51" aria-label="الصفحة 51"><img src="book-pages/page-051.jpg" alt="صفحة 51 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">51</span></article>
+<article class="page" id="page-52" aria-label="الصفحة 52"><img src="book-pages/page-052.jpg" alt="صفحة 52 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">52</span></article>
+<article class="page" id="page-53" aria-label="الصفحة 53"><img src="book-pages/page-053.jpg" alt="صفحة 53 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">53</span></article>
+<article class="page" id="page-54" aria-label="الصفحة 54"><img src="book-pages/page-054.jpg" alt="صفحة 54 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">54</span></article>
+<article class="page" id="page-55" aria-label="الصفحة 55"><img src="book-pages/page-055.jpg" alt="صفحة 55 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">55</span></article>
+<article class="page" id="page-56" aria-label="الصفحة 56"><img src="book-pages/page-056.jpg" alt="صفحة 56 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">56</span></article>
+<article class="page" id="page-57" aria-label="الصفحة 57"><img src="book-pages/page-057.jpg" alt="صفحة 57 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">57</span></article>
+<article class="page" id="page-58" aria-label="الصفحة 58"><img src="book-pages/page-058.jpg" alt="صفحة 58 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">58</span></article>
+<article class="page" id="page-59" aria-label="الصفحة 59"><img src="book-pages/page-059.jpg" alt="صفحة 59 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">59</span></article>
+<article class="page" id="page-60" aria-label="الصفحة 60"><img src="book-pages/page-060.jpg" alt="صفحة 60 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">60</span></article>
+<article class="page" id="page-61" aria-label="الصفحة 61"><img src="book-pages/page-061.jpg" alt="صفحة 61 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">61</span></article>
+<article class="page" id="page-62" aria-label="الصفحة 62"><img src="book-pages/page-062.jpg" alt="صفحة 62 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">62</span></article>
+<article class="page" id="page-63" aria-label="الصفحة 63"><img src="book-pages/page-063.jpg" alt="صفحة 63 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">63</span></article>
+<article class="page" id="page-64" aria-label="الصفحة 64"><img src="book-pages/page-064.jpg" alt="صفحة 64 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">64</span></article>
+<article class="page" id="page-65" aria-label="الصفحة 65"><img src="book-pages/page-065.jpg" alt="صفحة 65 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">65</span></article>
+<article class="page" id="page-66" aria-label="الصفحة 66"><img src="book-pages/page-066.jpg" alt="صفحة 66 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">66</span></article>
+<article class="page" id="page-67" aria-label="الصفحة 67"><img src="book-pages/page-067.jpg" alt="صفحة 67 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">67</span></article>
+<article class="page" id="page-68" aria-label="الصفحة 68"><img src="book-pages/page-068.jpg" alt="صفحة 68 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">68</span></article>
+<article class="page" id="page-69" aria-label="الصفحة 69"><img src="book-pages/page-069.jpg" alt="صفحة 69 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">69</span></article>
+<article class="page" id="page-70" aria-label="الصفحة 70"><img src="book-pages/page-070.jpg" alt="صفحة 70 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">70</span></article>
+<article class="page" id="page-71" aria-label="الصفحة 71"><img src="book-pages/page-071.jpg" alt="صفحة 71 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">71</span></article>
+<article class="page" id="page-72" aria-label="الصفحة 72"><img src="book-pages/page-072.jpg" alt="صفحة 72 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">72</span></article>
+<article class="page" id="page-73" aria-label="الصفحة 73"><img src="book-pages/page-073.jpg" alt="صفحة 73 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">73</span></article>
+<article class="page" id="page-74" aria-label="الصفحة 74"><img src="book-pages/page-074.jpg" alt="صفحة 74 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">74</span></article>
+<article class="page" id="page-75" aria-label="الصفحة 75"><img src="book-pages/page-075.jpg" alt="صفحة 75 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">75</span></article>
+<article class="page" id="page-76" aria-label="الصفحة 76"><img src="book-pages/page-076.jpg" alt="صفحة 76 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">76</span></article>
+<article class="page" id="page-77" aria-label="الصفحة 77"><img src="book-pages/page-077.jpg" alt="صفحة 77 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">77</span></article>
+<article class="page" id="page-78" aria-label="الصفحة 78"><img src="book-pages/page-078.jpg" alt="صفحة 78 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">78</span></article>
+<article class="page" id="page-79" aria-label="الصفحة 79"><img src="book-pages/page-079.jpg" alt="صفحة 79 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">79</span></article>
+<article class="page" id="page-80" aria-label="الصفحة 80"><img src="book-pages/page-080.jpg" alt="صفحة 80 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">80</span></article>
+<article class="page" id="page-81" aria-label="الصفحة 81"><img src="book-pages/page-081.jpg" alt="صفحة 81 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">81</span></article>
+<article class="page" id="page-82" aria-label="الصفحة 82"><img src="book-pages/page-082.jpg" alt="صفحة 82 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">82</span></article>
+<article class="page" id="page-83" aria-label="الصفحة 83"><img src="book-pages/page-083.jpg" alt="صفحة 83 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">83</span></article>
+<article class="page" id="page-84" aria-label="الصفحة 84"><img src="book-pages/page-084.jpg" alt="صفحة 84 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">84</span></article>
+<article class="page" id="page-85" aria-label="الصفحة 85"><img src="book-pages/page-085.jpg" alt="صفحة 85 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">85</span></article>
+<article class="page" id="page-86" aria-label="الصفحة 86"><img src="book-pages/page-086.jpg" alt="صفحة 86 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">86</span></article>
+<article class="page" id="page-87" aria-label="الصفحة 87"><img src="book-pages/page-087.jpg" alt="صفحة 87 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">87</span></article>
+<article class="page" id="page-88" aria-label="الصفحة 88"><img src="book-pages/page-088.jpg" alt="صفحة 88 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">88</span></article>
+<article class="page" id="page-89" aria-label="الصفحة 89"><img src="book-pages/page-089.jpg" alt="صفحة 89 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">89</span></article>
+<article class="page" id="page-90" aria-label="الصفحة 90"><img src="book-pages/page-090.jpg" alt="صفحة 90 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">90</span></article>
+<article class="page" id="page-91" aria-label="الصفحة 91"><img src="book-pages/page-091.jpg" alt="صفحة 91 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">91</span></article>
+<article class="page" id="page-92" aria-label="الصفحة 92"><img src="book-pages/page-092.jpg" alt="صفحة 92 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">92</span></article>
+<article class="page" id="page-93" aria-label="الصفحة 93"><img src="book-pages/page-093.jpg" alt="صفحة 93 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">93</span></article>
+<article class="page" id="page-94" aria-label="الصفحة 94"><img src="book-pages/page-094.jpg" alt="صفحة 94 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">94</span></article>
+<article class="page" id="page-95" aria-label="الصفحة 95"><img src="book-pages/page-095.jpg" alt="صفحة 95 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">95</span></article>
+<article class="page" id="page-96" aria-label="الصفحة 96"><img src="book-pages/page-096.jpg" alt="صفحة 96 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">96</span></article>
+<article class="page" id="page-97" aria-label="الصفحة 97"><img src="book-pages/page-097.jpg" alt="صفحة 97 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">97</span></article>
+<article class="page" id="page-98" aria-label="الصفحة 98"><img src="book-pages/page-098.jpg" alt="صفحة 98 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">98</span></article>
+<article class="page" id="page-99" aria-label="الصفحة 99"><img src="book-pages/page-099.jpg" alt="صفحة 99 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">99</span></article>
+<article class="page" id="page-100" aria-label="الصفحة 100"><img src="book-pages/page-100.jpg" alt="صفحة 100 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">100</span></article>
+<article class="page" id="page-101" aria-label="الصفحة 101"><img src="book-pages/page-101.jpg" alt="صفحة 101 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">101</span></article>
+<article class="page" id="page-102" aria-label="الصفحة 102"><img src="book-pages/page-102.jpg" alt="صفحة 102 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">102</span></article>
+<article class="page" id="page-103" aria-label="الصفحة 103"><img src="book-pages/page-103.jpg" alt="صفحة 103 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">103</span></article>
+<article class="page" id="page-104" aria-label="الصفحة 104"><img src="book-pages/page-104.jpg" alt="صفحة 104 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">104</span></article>
+<article class="page" id="page-105" aria-label="الصفحة 105"><img src="book-pages/page-105.jpg" alt="صفحة 105 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">105</span></article>
+<article class="page" id="page-106" aria-label="الصفحة 106"><img src="book-pages/page-106.jpg" alt="صفحة 106 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">106</span></article>
+<article class="page" id="page-107" aria-label="الصفحة 107"><img src="book-pages/page-107.jpg" alt="صفحة 107 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">107</span></article>
+<article class="page" id="page-108" aria-label="الصفحة 108"><img src="book-pages/page-108.jpg" alt="صفحة 108 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">108</span></article>
+<article class="page" id="page-109" aria-label="الصفحة 109"><img src="book-pages/page-109.jpg" alt="صفحة 109 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">109</span></article>
+<article class="page" id="page-110" aria-label="الصفحة 110"><img src="book-pages/page-110.jpg" alt="صفحة 110 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">110</span></article>
+<article class="page" id="page-111" aria-label="الصفحة 111"><img src="book-pages/page-111.jpg" alt="صفحة 111 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">111</span></article>
+<article class="page" id="page-112" aria-label="الصفحة 112"><img src="book-pages/page-112.jpg" alt="صفحة 112 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">112</span></article>
+<article class="page" id="page-113" aria-label="الصفحة 113"><img src="book-pages/page-113.jpg" alt="صفحة 113 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">113</span></article>
+<article class="page" id="page-114" aria-label="الصفحة 114"><img src="book-pages/page-114.jpg" alt="صفحة 114 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">114</span></article>
+<article class="page" id="page-115" aria-label="الصفحة 115"><img src="book-pages/page-115.jpg" alt="صفحة 115 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">115</span></article>
+<article class="page" id="page-116" aria-label="الصفحة 116"><img src="book-pages/page-116.jpg" alt="صفحة 116 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">116</span></article>
+<article class="page" id="page-117" aria-label="الصفحة 117"><img src="book-pages/page-117.jpg" alt="صفحة 117 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">117</span></article>
+<article class="page" id="page-118" aria-label="الصفحة 118"><img src="book-pages/page-118.jpg" alt="صفحة 118 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">118</span></article>
+<article class="page" id="page-119" aria-label="الصفحة 119"><img src="book-pages/page-119.jpg" alt="صفحة 119 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">119</span></article>
+<article class="page" id="page-120" aria-label="الصفحة 120"><img src="book-pages/page-120.jpg" alt="صفحة 120 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">120</span></article>
+<article class="page" id="page-121" aria-label="الصفحة 121"><img src="book-pages/page-121.jpg" alt="صفحة 121 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">121</span></article>
+<article class="page" id="page-122" aria-label="الصفحة 122"><img src="book-pages/page-122.jpg" alt="صفحة 122 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">122</span></article>
+<article class="page" id="page-123" aria-label="الصفحة 123"><img src="book-pages/page-123.jpg" alt="صفحة 123 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">123</span></article>
+<article class="page" id="page-124" aria-label="الصفحة 124"><img src="book-pages/page-124.jpg" alt="صفحة 124 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">124</span></article>
+<article class="page" id="page-125" aria-label="الصفحة 125"><img src="book-pages/page-125.jpg" alt="صفحة 125 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">125</span></article>
+<article class="page" id="page-126" aria-label="الصفحة 126"><img src="book-pages/page-126.jpg" alt="صفحة 126 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">126</span></article>
+<article class="page" id="page-127" aria-label="الصفحة 127"><img src="book-pages/page-127.jpg" alt="صفحة 127 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">127</span></article>
+<article class="page" id="page-128" aria-label="الصفحة 128"><img src="book-pages/page-128.jpg" alt="صفحة 128 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">128</span></article>
+<article class="page" id="page-129" aria-label="الصفحة 129"><img src="book-pages/page-129.jpg" alt="صفحة 129 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">129</span></article>
+<article class="page" id="page-130" aria-label="الصفحة 130"><img src="book-pages/page-130.jpg" alt="صفحة 130 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">130</span></article>
+<article class="page" id="page-131" aria-label="الصفحة 131"><img src="book-pages/page-131.jpg" alt="صفحة 131 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">131</span></article>
+<article class="page" id="page-132" aria-label="الصفحة 132"><img src="book-pages/page-132.jpg" alt="صفحة 132 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">132</span></article>
+<article class="page" id="page-133" aria-label="الصفحة 133"><img src="book-pages/page-133.jpg" alt="صفحة 133 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">133</span></article>
+<article class="page" id="page-134" aria-label="الصفحة 134"><img src="book-pages/page-134.jpg" alt="صفحة 134 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">134</span></article>
+<article class="page" id="page-135" aria-label="الصفحة 135"><img src="book-pages/page-135.jpg" alt="صفحة 135 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">135</span></article>
+<article class="page" id="page-136" aria-label="الصفحة 136"><img src="book-pages/page-136.jpg" alt="صفحة 136 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">136</span></article>
+<article class="page" id="page-137" aria-label="الصفحة 137"><img src="book-pages/page-137.jpg" alt="صفحة 137 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">137</span></article>
+<article class="page" id="page-138" aria-label="الصفحة 138"><img src="book-pages/page-138.jpg" alt="صفحة 138 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">138</span></article>
+<article class="page" id="page-139" aria-label="الصفحة 139"><img src="book-pages/page-139.jpg" alt="صفحة 139 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">139</span></article>
+<article class="page" id="page-140" aria-label="الصفحة 140"><img src="book-pages/page-140.jpg" alt="صفحة 140 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">140</span></article>
+<article class="page" id="page-141" aria-label="الصفحة 141"><img src="book-pages/page-141.jpg" alt="صفحة 141 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">141</span></article>
+<article class="page" id="page-142" aria-label="الصفحة 142"><img src="book-pages/page-142.jpg" alt="صفحة 142 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">142</span></article>
+<article class="page" id="page-143" aria-label="الصفحة 143"><img src="book-pages/page-143.jpg" alt="صفحة 143 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">143</span></article>
+<article class="page" id="page-144" aria-label="الصفحة 144"><img src="book-pages/page-144.jpg" alt="صفحة 144 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">144</span></article>
+<article class="page" id="page-145" aria-label="الصفحة 145"><img src="book-pages/page-145.jpg" alt="صفحة 145 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">145</span></article>
+<article class="page" id="page-146" aria-label="الصفحة 146"><img src="book-pages/page-146.jpg" alt="صفحة 146 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">146</span></article>
+<article class="page" id="page-147" aria-label="الصفحة 147"><img src="book-pages/page-147.jpg" alt="صفحة 147 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">147</span></article>
+<article class="page" id="page-148" aria-label="الصفحة 148"><img src="book-pages/page-148.jpg" alt="صفحة 148 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">148</span></article>
+<article class="page" id="page-149" aria-label="الصفحة 149"><img src="book-pages/page-149.jpg" alt="صفحة 149 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">149</span></article>
+<article class="page" id="page-150" aria-label="الصفحة 150"><img src="book-pages/page-150.jpg" alt="صفحة 150 من كتاب الشركة الناشئة المرنة" loading="lazy" decoding="async"><span class="page-number">150</span></article>
+</main><a class="back-top" href="#top" aria-label="العودة إلى بداية الكتاب" title="العودة إلى البداية">↑</a>
+</body></html>
