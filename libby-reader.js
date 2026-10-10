@@ -468,6 +468,7 @@
   }
 
   function applyLayout(mode) {
+    mode = 'single';
     state.layoutMode = mode;
     document.body.classList.toggle('mode-spread', mode === 'spread');
     document.querySelectorAll('.layout-choice-btn').forEach(btn => {
@@ -672,7 +673,7 @@
   }
 
   // --- Reading Pause Marker Engine (مؤشر التوقف المؤقت) ---
-  function setPauseMarker(targetElement) {
+  function setPauseMarker(targetElement, caret) {
     const page = state.currentPage;
     let snippet = '';
     let targetEl = targetElement;
@@ -708,7 +709,16 @@
         e.stopPropagation();
         clearPauseMarker();
       };
-      p.prepend(pin);
+      pin.setAttribute('aria-label', 'موضع التوقف، اضغط لإزالته');
+      pin.title = 'موضع التوقف — اضغط لإزالته';
+      pin.innerHTML = SVG_PIN;
+      pin.onclick = (event) => { event.stopPropagation(); clearPauseMarker(); };
+      if (caret && p.contains(caret.node) && caret.node.nodeType === Node.TEXT_NODE) {
+        const range = document.createRange();
+        range.setStart(caret.node, Math.min(caret.offset, caret.node.length));
+        range.collapse(true);
+        range.insertNode(pin);
+      } else { p.prepend(pin); }
     } else {
       snippet = state.currentChapterTitle;
     }
@@ -720,7 +730,9 @@
       page: page,
       snippet: snippet || `صفحة ${page}`,
       time: timeStr,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      paragraphIndex: Array.from(bookArticle.querySelectorAll('p,h2,h3,li')).indexOf(targetEl && (targetEl.closest('p,h2,h3,li') || targetEl)),
+      textOffset: caret ? caret.absoluteOffset : 0
     };
 
     saveState();
@@ -736,7 +748,14 @@
     const targetPage = state.pauseMarker.page;
     openReader(targetPage);
     setTimeout(() => {
-      goToPage(targetPage, false);
+      const savedPin = document.querySelector('.libby-pause-marker-pin');
+      let resumePage = targetPage;
+      if(savedPin && columnWindow) {
+        const rect = savedPin.getBoundingClientRect();
+        const windowRect = columnWindow.getBoundingClientRect();
+        resumePage = state.currentPage + Math.round((windowRect.right - rect.right) / columnWindow.clientWidth);
+      }
+      goToPage(resumePage, false);
       const paused = document.querySelector('.libby-paused-element');
       if (paused) {
         paused.classList.remove('libby-paused-element');
@@ -831,13 +850,7 @@
 
     const btnPause = document.getElementById('btn-hud-pause');
     if (btnPause) {
-      btnPause.addEventListener('click', () => {
-        if (state.pauseMarker && state.pauseMarker.page === state.currentPage) {
-          clearPauseMarker();
-        } else {
-          setPauseMarker();
-        }
-      });
+
     }
 
     const btnAppearance = document.getElementById('btn-hud-appearance');
@@ -891,12 +904,36 @@
       }
     });
 
+    const toolsToggle = document.getElementById('reader-tools-toggle');
+    const toolsPanel = document.getElementById('reader-tools-panel');
+    toolsPanel.append(document.getElementById('reader-hud-top'), document.getElementById('reader-hud-bottom'));
+    const closeTools = () => { toolsPanel.hidden = true; toolsToggle.setAttribute('aria-expanded', 'false'); };
+    toolsToggle.addEventListener('click', () => {
+      toolsPanel.hidden = !toolsPanel.hidden;
+      toolsToggle.setAttribute('aria-expanded', String(!toolsPanel.hidden));
+    });
+    toolsPanel.addEventListener('click', e => { if (e.target.closest('button')) closeTools(); });
+    let pinPlacement = false;
+    btnPause.addEventListener('click', () => {
+      pinPlacement = true;
+      showToast('اضغط بجانب الكلمة لحفظ موضع التوقف');
+    });
+    function caretAt(x, y) {
+      let node, offset;
+      if (document.caretPositionFromPoint) { const c = document.caretPositionFromPoint(x,y); if(c) {node=c.offsetNode;offset=c.offset;} }
+      else if(document.caretRangeFromPoint) { const r=document.caretRangeFromPoint(x,y); if(r) {node=r.startContainer;offset=r.startOffset;} }
+      if(!node || !bookArticle.contains(node)) return null;
+      const parent=node.parentElement.closest('p,h2,h3,li');
+      if(!parent) return null;
+      const r=document.createRange();r.selectNodeContents(parent);r.setEnd(node,offset);
+      return {node,offset,absoluteOffset:r.toString().length};
+    }
     // Double-click or paragraph click for Pause Pin
     if (bookArticle) {
       bookArticle.addEventListener('dblclick', (e) => {
         const p = e.target.closest('p, h2, h3');
         if (p) {
-          setPauseMarker(p);
+          setPauseMarker(p, caretAt(e.clientX, e.clientY));
         }
       });
     }
@@ -923,6 +960,11 @@
 
     if (columnWindow) {
       columnWindow.addEventListener('click', (e) => {
+        if (matchMedia('(pointer: coarse)').matches || pinPlacement) {
+          if(e.target.closest('a,button,.libby-pause-marker-pin')) return;
+          if(pinPlacement) { const caret=caretAt(e.clientX,e.clientY); if(caret) { setPauseMarker(caret.node.parentElement,caret);pinPlacement=false; } }
+          return;
+        }
         // Ignore clicks on links, buttons, form inputs, footnote markers, or pause pins
         if (e.target.closest('a, button, input, select, textarea, .footnote-ref, .footnote-link, .btn-remove-pin, .libby-pause-marker-pin')) return;
         const sel = window.getSelection();
@@ -974,11 +1016,16 @@
     let touchStartY = 0;
     let touchStartTime = 0;
     let isHorizontalGesture = false;
+    let readerTouchActive = false;
 
     window.addEventListener('touchstart', (e) => {
+      isHorizontalGesture = false;
+      readerTouchActive = false;
       if (!viewReader || !viewReader.classList.contains('active')) return;
       if (e.target.closest('button, a, input, select, textarea, .modal-backdrop, .modal-sheet')) return;
 
+      if(e.touches.length !== 1) {isHorizontalGesture=false;return;}
+      readerTouchActive = true;
       touchStartX = e.touches[0].clientX;
       touchStartY = e.touches[0].clientY;
       touchStartTime = Date.now();
@@ -986,8 +1033,11 @@
     }, { passive: true });
 
     window.addEventListener('touchmove', (e) => {
+      if(!readerTouchActive) return;
       if (!viewReader || !viewReader.classList.contains('active')) return;
-      if (!e.touches[0]) return;
+      if (e.target.closest('.modal-backdrop, #reader-tools-panel')) return;
+      if(e.cancelable) e.preventDefault();
+      if (e.touches.length !== 1) { isHorizontalGesture=false;return; }
 
       const diffX = e.touches[0].clientX - touchStartX;
       const diffY = e.touches[0].clientY - touchStartY;
@@ -995,9 +1045,11 @@
       if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 10) {
         isHorizontalGesture = true;
       }
-    }, { passive: true });
+    }, { passive: false });
 
     window.addEventListener('touchend', (e) => {
+      if(!readerTouchActive) return;
+      readerTouchActive = false;
       if (!viewReader || !viewReader.classList.contains('active')) return;
       if (!isHorizontalGesture) return;
 
@@ -1006,15 +1058,18 @@
       const velocity = Math.abs(diffX) / Math.max(1, duration);
 
       // In Arabic RTL:
-      // Swiping left (diffX < 0) advances to NEXT page!
-      // Swiping right (diffX > 0) goes back to PREVIOUS page!
+      // Swipe left returns to the previous Arabic page.
+      // Swipe right advances to the next Arabic page.
       if (diffX < -40 || (diffX < -20 && velocity > 0.3)) {
-        nextPage();
-      } else if (diffX > 40 || (diffX > 20 && velocity > 0.3)) {
         prevPage();
+      } else if (diffX > 40 || (diffX > 20 && velocity > 0.3)) {
+        nextPage();
       }
       isHorizontalGesture = false;
+      closeTools();
     }, { passive: true });
+
+    window.addEventListener('touchcancel', () => { readerTouchActive=false; isHorizontalGesture=false; });
 
     // Window Resize -> Recalculate columns
     let resizeTimer;
@@ -1086,6 +1141,23 @@
 
     updateCoverButton();
 
+    if (state.pauseMarker && Number.isInteger(state.pauseMarker.paragraphIndex) && state.pauseMarker.paragraphIndex >= 0) {
+      const p = bookArticle.querySelectorAll('p,h2,h3,li')[state.pauseMarker.paragraphIndex];
+      if(p) {
+        let remaining=state.pauseMarker.textOffset || 0;
+        const walker=document.createTreeWalker(p,NodeFilter.SHOW_TEXT);
+        let node;
+        while((node=walker.nextNode())) {
+          if(remaining<=node.length) {
+            const range=document.createRange();range.setStart(node,remaining);range.collapse(true);
+            const pin=document.createElement('span');pin.className='libby-pause-marker-pin';pin.innerHTML=SVG_PIN;
+            pin.title='موضع التوقف — اضغط لإزالته';pin.onclick=e=>{e.stopPropagation();clearPauseMarker();};
+            range.insertNode(pin);p.classList.add('libby-paused-element');break;
+          }
+          remaining-=node.length;
+        }
+      }
+    }
     // Start on Modern Clean Cover View
     openCover();
   }
