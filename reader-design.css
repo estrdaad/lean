@@ -1,0 +1,23 @@
+/* Stable column geometry: children cannot keep the pre-rotation minimum width. */
+#view-reader { height: var(--reader-viewport-height, 100dvh); max-width: 100%; }
+.reader-column-stage { min-width: 0; width: 100%; overflow: hidden; }
+.reader-column-window { min-width: 0 !important; max-width: 100% !important; flex-shrink: 1; contain: inline-size; }
+.reader-columns-content { min-width: 0; width: 100%; }
+#book-article { min-width: 0 !important; max-width: none !important; column-count: 1 !important; column-rule: none !important; }
+.reader-icon { width: 20px; height: 20px; flex: 0 0 20px; }
+#reader-tools-toggle { width: 48px; height: 48px; border-radius: 18px; background: var(--bg-card); box-shadow: 0 6px 24px #0002; }
+#reader-tools-panel { right: auto; bottom: auto; margin: 0; left: 0; top: 0; width: min(580px, calc(100vw - 24px)); max-height: calc(100dvh - 100px); border: 1px solid var(--border-subtle); padding: 16px; border-radius: 24px; }
+#reader-tools-panel .hud-left-controls { display: flex; flex-wrap: wrap; gap: 10px; }
+#reader-tools-panel #btn-hud-bookmark { width: auto; flex: 0 0 auto; display: flex; align-items: center; gap: 8px; padding: 0 14px; border-radius: 14px; }
+#reader-tools-panel #btn-hud-bookmark.is-active { color: var(--libby-teal); border-color: var(--libby-teal); background: var(--libby-teal-light); }
+.control-label { font-size: 14px; white-space: nowrap; }
+#saved-page-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 0 0 14px; margin-bottom: 14px; border-bottom: 1px solid var(--border-subtle); }
+#saved-page-actions[hidden], #saved-page-indicator[hidden] { display: none !important; }
+#saved-page-label { flex: 1 0 100%; font-size: 14px; color: var(--text-secondary); }
+#saved-page-actions button { font: inherit; color: var(--text-main); background: var(--bg-paper); border: 1px solid var(--border-subtle); border-radius: 12px; padding: 8px 14px; }
+#saved-page-indicator { position: fixed; z-index: 145; bottom: calc(14px + env(safe-area-inset-bottom)); right: calc(12px + env(safe-area-inset-right)); width: 44px; height: 44px; display: grid; place-items: center; border: 1px solid var(--border-subtle); border-radius: 14px; background: var(--bg-card); color: var(--libby-teal); cursor: pointer; }
+/* Page markers do not decorate, highlight or insert anything into the book. */
+.libby-pause-marker-pin { display: none !important; }
+[data-open-library] { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+button:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+@media (prefers-reduced-motion: reduce) { .reader-columns-content, .modal-sheet { transition: none !important; animation: none !important; } }

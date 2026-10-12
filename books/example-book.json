@@ -1,0 +1,18 @@
+{
+  "format": "reader-book",
+  "version": 1,
+  "id": "example-book",
+  "title": "كتاب تجريبي",
+  "author": "مؤلف الكتاب",
+  "language": "ar",
+  "direction": "rtl",
+  "sourcePages": 1,
+  "description": "نموذج لتجربة إضافة الكتب",
+  "cover": "",
+  "assets": {},
+  "toc": [
+    { "id": "sample-chapter", "title": "الفصل الأول" },
+    { "id": "sample-notes", "title": "الحواشي" }
+  ],
+  "contentHtml": "<h2 id=\"sample-chapter\" class=\"display-heading\">الفصل الأول</h2><p>هذه فقرة من كتاب مستقل، تتضمن <strong>نصًا عريضًا</strong> و<em>نصًا مائلًا</em> وحاشية <a class=\"footnote-link\" href=\"#sample-note-1\" data-footnote-number=\"1\" data-note-section=\"1\">1</a>.</p><table><caption>جدول توضيحي</caption><thead><tr><th>الفكرة</th><th>المعنى</th></tr></thead><tbody><tr><td>التعلّم</td><td>اختبار الأفكار قبل التوسع في تنفيذها.</td></tr></tbody></table><h2 id=\"sample-notes\">الحواشي</h2><p id=\"sample-note-1\" class=\"endnote endnote-target\"><strong>1.</strong> هذه حاشية تجريبية يظهر محتواها عند الضغط على رقم الإحالة.</p>"
+}

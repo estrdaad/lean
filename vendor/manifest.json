@@ -1,0 +1,19 @@
+[
+  {
+    "package": "@floating-ui/core",
+    "version": "1.8.0",
+    "source": "https://github.com/floating-ui/floating-ui",
+    "sha256": "c86371bdb19948a71591d36f23ec33d2b54e06503bd5c2e00a2dbbfa389622fd"
+  },
+  {
+    "package": "@floating-ui/dom",
+    "version": "1.8.0",
+    "source": "https://github.com/floating-ui/floating-ui",
+    "sha256": "b9511cc8fd8898c7c67143ff8dd93a3d427108632c801a546ae72ab1df3cd6a5"
+  },
+  {
+    "package": "lucide SVG subset",
+    "commit": "70562c1ee1c4fdcf736fe97bc893fb8511927934",
+    "source": "https://github.com/lucide-icons/lucide"
+  }
+]
