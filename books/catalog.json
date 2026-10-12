@@ -1,0 +1,18 @@
+[
+  {
+    "id": "lean-startup",
+    "title": "الشركة الناشئة المرنة",
+    "author": "إريك ريس (Eric Ries)",
+    "description": "النسخة العربية المنقّحة • الرسوم والحواشي كاملة",
+    "sourcePages": 296,
+    "path": "books/lean-startup.json"
+  },
+  {
+    "id": "good-to-great-ar",
+    "title": "من جيد إلى عظيم",
+    "author": "جيم كولينز",
+    "description": "نسخة عربية منقحة بمقابلة الأصل الإنجليزي، مع الصور والجداول والحواشي.",
+    "sourcePages": 539,
+    "path": "books/good-to-great-revised.json"
+  }
+]

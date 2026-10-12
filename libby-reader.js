@@ -18,6 +18,8 @@
   'use strict';
 
   let CHAPTER_METAS = [];
+  let readerReady;
+  const ready = new Promise(resolve => { readerReady = resolve; });
 
   // Global State
   const state = {
@@ -44,7 +46,7 @@
   const escapeHtml = value => String(value).replace(/[&<>"']/g, character => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[character]));
   function readingKey(name) { return 'reader-book-' + window.BookLibrary.activeBook.id + '-' + name; }
 
-  function saveState() {
+  function saveState(syncProgress = false) {
     try {
       localStorage.setItem(readingKey('page'), state.currentPage);
       if (state.readingLocation) localStorage.setItem(readingKey('location'), JSON.stringify(state.readingLocation));
@@ -61,6 +63,12 @@
     } catch (e) {
       console.warn('Storage unavailable', e);
     }
+    if (syncProgress) window.dispatchEvent(new CustomEvent('reader-progress-changed', { detail: {
+      page: state.currentPage, location: state.readingLocation, pause: state.pauseMarker ? {
+        page: state.pauseMarker.page, location: state.pauseMarker.location || null,
+        snippet: (state.pauseMarker.snippet || '').slice(0, 1000), timestamp: state.pauseMarker.timestamp || Date.now()
+      } : null
+    } }));
   }
 
   function loadState() {
@@ -348,7 +356,7 @@
     applyPageTransform(false);
     state.readingLocation = captureLocation();
     updateHudStats();
-    saveState();
+    saveState(true);
   }
 
   function nextPage() {
@@ -725,7 +733,7 @@
   // A saved page is a logical reading location, independent of viewport dimensions.
   function setPauseMarker() {
     state.pauseMarker = { page: state.currentPage, location: captureLocation(), snippet: state.currentChapterTitle, timestamp: Date.now() };
-    saveState(); updatePauseMarkerUI(); showToast('تم حفظ هذه الصفحة');
+    saveState(true); updatePauseMarkerUI(); showToast('تم حفظ هذه الصفحة');
   }
   function resumeFromPauseMarker() {
     if (!state.pauseMarker) return;
@@ -737,7 +745,7 @@
   }
   function clearPauseMarker() {
     state.pauseMarker = null;
-    saveState(); updatePauseMarkerUI(); showToast('تمت إزالة علامة الصفحة');
+    saveState(true); updatePauseMarkerUI(); showToast('تمت إزالة علامة الصفحة');
   }
   function updatePauseMarkerUI() {
     const marker = state.pauseMarker;
@@ -1077,6 +1085,7 @@ const btnAppearance = document.getElementById('btn-hud-appearance');
     // Start on Modern Clean Cover View
     openCover();
     bookArticle.querySelectorAll('img').forEach(image => image.addEventListener('load', scheduleReflow));
+    readerReady();
   }
 
   if (document.readyState === 'loading') {
@@ -1087,6 +1096,16 @@ const btnAppearance = document.getElementById('btn-hud-appearance');
 
   // Global Controller
   window.LibbyApp = {
+    ready,
+    restoreProgress(progress) {
+      state.currentPage = progress.page;
+      state.readingLocation = progress.location;
+      state.pauseMarker = progress.pause;
+      recalculatePagination();
+      updatePauseMarkerUI();
+      updateCoverButton();
+      saveState();
+    },
     openReader,
     openCover,
     goToPage,

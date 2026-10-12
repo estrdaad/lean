@@ -5,6 +5,7 @@
   const MAX_BYTES = 50 * 1024 * 1024;
   let lastLibraryTrigger;
   let database, activeBook, busy = false, defaultBook = window.BUNDLED_READER_BOOK;
+  let hostedBooks = [];
   const view = document.getElementById('book-library');
   const status = document.getElementById('library-status');
   const grid = document.getElementById('library-grid');
@@ -42,8 +43,17 @@
   }
   async function allBooks() {
     const map = new Map([[DEFAULT_ID, defaultBook]]);
+    hostedBooks.forEach(book => { if (book.id !== DEFAULT_ID) map.set(book.id, book); });
     (await readBooks()).forEach(book => map.set(book.id, book));
     return [...map.values()];
+  }
+  async function loadBook(book) {
+    if (!book.hostedPath) return book;
+    const response = await fetch(book.hostedPath);
+    if (!response.ok) throw new Error('تعذر تحميل الكتاب من المستودع.');
+    const loaded = validateBook(await response.json());
+    if (loaded.id !== book.id) throw new Error('معرّف الكتاب لا يطابق فهرس المستودع.');
+    return loaded;
   }
 
   // Preserve semantic HTML, tables, inline formatting and vector illustrations,
@@ -164,7 +174,10 @@
           history.replaceState(null, '', location.pathname + location.search);
           location.reload();
         } catch (_) { report('تعذر حفظ اختيار الكتاب في هذا المتصفح.', true); }
-      }), button('تصدير الكتاب', () => download(book, book.id + '.json')));
+      }), button('تصدير الكتاب', async () => {
+        try { download(await loadBook(book), book.id + '.json'); }
+        catch (error) { report(error.message, true); }
+      }));
       card.append(image, title, author, progress, actions); grid.append(card);
     }
   }
@@ -200,6 +213,13 @@
   async function initialize() {
     if (location.protocol !== 'file:') {
       try {
+        const response = await fetch('books/catalog.json');
+        if (!response.ok) throw new Error('Unavailable');
+        const catalog = await response.json();
+        hostedBooks = catalog.filter(book => safeId(book.id) && typeof book.title === 'string' && typeof book.author === 'string' && /^books\/[a-zA-Z0-9_-]+\.json$/.test(book.path))
+          .map(book => ({ ...book, hostedPath: book.path, assets: {}, cover: '' }));
+      } catch (_) { /* The bundled book stays available offline. */ }
+      try {
         const response = await fetch('books/lean-startup.json');
         if (!response.ok) throw new Error('Unavailable');
         const candidate = await response.json();
@@ -210,13 +230,15 @@
     let books;
     try { books = await allBooks(); } catch (_) { database = null; books = [defaultBook]; report('تعذر الوصول إلى الكتب المحفوظة. يُعرض الكتاب المرفق مؤقتًا.', true); document.getElementById('library-import').disabled = true; }
     activeBook = books.find(book => book.id === setting('reader-active-book')) || books[0];
+    try { activeBook = await loadBook(activeBook); }
+    catch (error) { activeBook = defaultBook; report(error.message, true); }
     hydrateBook(activeBook); migrateOldProgress();
     document.querySelectorAll('[data-open-library]').forEach(element => element.addEventListener('click', openLibrary));
     document.getElementById('library-close').onclick = closeLibrary;
     document.getElementById('library-import').onclick = () => document.getElementById('library-files').click();
     document.getElementById('library-files').onchange = event => importFiles([...event.target.files]);
     document.getElementById('library-export').onclick = async () => {
-      try { download({ format: 'reader-library', version: 1, books: await allBooks() }, 'reader-library.json'); report('تم تجهيز ملف المكتبة للتنزيل.'); }
+      try { download({ format: 'reader-library', version: 1, books: await Promise.all((await allBooks()).map(loadBook)) }, 'reader-library.json'); report('تم تجهيز ملف المكتبة للتنزيل.'); }
       catch (_) { report('تعذر تصدير المكتبة.', true); }
     };
     view.addEventListener('keydown', event => {

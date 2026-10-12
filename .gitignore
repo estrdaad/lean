@@ -1,3 +1,6 @@
 .DS_Store
 *.log
 *.backup
+.firebase/
+firebase-debug.log*
+.playwright-mcp/

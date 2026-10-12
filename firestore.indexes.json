@@ -1,0 +1,10 @@
+{
+  "indexes": [],
+  "fieldOverrides": [
+    { "collectionGroup": "readingProgress", "fieldPath": "page", "indexes": [] },
+    { "collectionGroup": "readingProgress", "fieldPath": "location", "indexes": [] },
+    { "collectionGroup": "readingProgress", "fieldPath": "pause", "indexes": [] },
+    { "collectionGroup": "readingProgress", "fieldPath": "changedAt", "indexes": [] },
+    { "collectionGroup": "readingProgress", "fieldPath": "updatedAt", "indexes": [] }
+  ]
+}

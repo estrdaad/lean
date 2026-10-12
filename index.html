@@ -333,8 +333,9 @@
   <section id="book-library" hidden role="dialog" aria-modal="true" aria-label="مكتبة الكتب" dir="rtl">
     <header class="library-header"><div><span class="library-eyebrow">مساحتك للقراءة</span><h1>المكتبة</h1></div><button type="button" id="library-close" class="library-button">العودة إلى الكتاب</button></header>
     <div class="library-actions"><button type="button" id="library-import" class="library-button primary">إضافة كتب</button><button type="button" id="library-export" class="library-button">تصدير المكتبة</button><input type="file" id="library-files" accept=".json,application/json" multiple hidden></div>
-    <p class="library-hint">استورد ملفات الكتب بصيغة JSON. تُحفظ الكتب المضافة على هذا الجهاز، ويمكن تصديرها مع الصور والتنسيقات لنقلها إلى جهاز آخر.</p>
+    <p class="library-hint">كتب المستودع متاحة على جميع أجهزتك، ويتزامن تقدم القراءة تلقائيًا. الكتب التي تستوردها من جهازك تبقى محلية حتى تضيف ملفاتها إلى المستودع وفهرس الكتب.</p>
     <p id="library-status" role="status" aria-live="polite"></p>
+    <p id="reader-sync-status" role="status" aria-live="polite">يُحفظ تقدم القراءة على هذا الجهاز.</p>
     <div id="library-grid"></div>
   </section>
   <script src="books/bundled-book.js"></script>
@@ -343,5 +344,7 @@
   <script src="vendor/floating-ui-dom.js"></script>
   <script src="reader-design.js"></script>
   <script src="libby-reader.js"></script>
+  <script src="firebase-config.js"></script>
+  <script src="reader-sync.js"></script>
 </body>
 </html>

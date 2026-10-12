@@ -1,0 +1,36 @@
+// Personal shared progress at readingProgress/{bookId}, without authentication.
+// page: positive integer; location: null or {block, offset}; pause: null or
+// {page, location, snippet, timestamp}; changedAt: client edit time in milliseconds;
+// updatedAt: server timestamp. Book contents are served from GitHub.
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function validLocation(value) {
+      return value == null || (value is map &&
+        value.keys().hasAll(['block', 'offset']) && value.keys().hasOnly(['block', 'offset']) &&
+        value.block is int && value.block >= 0 && value.block <= 1000000 &&
+        value.offset is int && value.offset >= 0 && value.offset <= 10000000);
+    }
+    function validPause(value) {
+      return value == null || (value is map &&
+        value.keys().hasAll(['page', 'location', 'snippet', 'timestamp']) &&
+        value.keys().hasOnly(['page', 'location', 'snippet', 'timestamp']) &&
+        value.page is int && value.page > 0 && value.page <= 1000000 &&
+        validLocation(value.location) && value.snippet is string && value.snippet.size() <= 1000 &&
+        value.timestamp is int && value.timestamp >= 0);
+    }
+    function validProgress(value) {
+      return value.keys().hasAll(['page', 'location', 'pause', 'changedAt', 'updatedAt']) &&
+        value.keys().hasOnly(['page', 'location', 'pause', 'changedAt', 'updatedAt']) &&
+        value.page is int && value.page > 0 && value.page <= 1000000 &&
+        validLocation(value.location) && validPause(value.pause) &&
+        value.changedAt is int && value.changedAt >= 0 && value.changedAt <= request.time.toMillis() + 300000 &&
+        value.updatedAt == request.time;
+    }
+    match /readingProgress/{bookId} {
+      // Explicit user choice: one shared progress record, no accounts or sign-in.
+      allow get: if bookId.matches('^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,119}$');
+      allow create, update: if bookId.matches('^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,119}$') && validProgress(request.resource.data);
+    }
+  }
+}

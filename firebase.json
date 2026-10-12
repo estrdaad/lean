@@ -1,0 +1,30 @@
+{
+  "firestore": {
+    "database": "reading-progress",
+    "edition": "enterprise",
+    "location": "me-central2",
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "hosting": {
+    "public": ".",
+    "ignore": [
+      "firebase.json",
+      "firestore.rules",
+      "firestore.indexes.json",
+      "**/.*",
+      "**/node_modules/**",
+      "**/*.backup",
+      "**/*.log",
+      "**/*.md",
+      "tmp/**",
+      "tools/**",
+      "tests/**"
+    ]
+  },
+  "emulators": {
+    "hosting": {
+      "port": 5000
+    }
+  }
+}
