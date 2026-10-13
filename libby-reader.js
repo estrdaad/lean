@@ -27,10 +27,10 @@
     readingLocation: null,
     layoutBusy: false,
     totalPages: 1,
-    isHudVisible: true,
+    isHudVisible: false,
     theme: 'warm',
     font: 'book',
-    fontSize: 19,
+    fontSize: 18,
     layoutMode: 'single', // 'single' | 'spread'
     bookmarks: {},
     pauseMarker: null, // { page, elementId, snippet, time, timestamp }
@@ -52,7 +52,7 @@
       if (state.readingLocation) localStorage.setItem(readingKey('location'), JSON.stringify(state.readingLocation));
       localStorage.setItem('libby-lean-theme', state.theme);
       localStorage.setItem('libby-lean-font', state.font);
-      localStorage.setItem('libby-lean-font-size', state.fontSize);
+      localStorage.setItem('reader-font-size-v2', state.fontSize);
       localStorage.setItem('libby-lean-layout', state.layoutMode);
       localStorage.setItem(readingKey('bookmarks'), JSON.stringify(state.bookmarks));
       if (state.pauseMarker) {
@@ -77,7 +77,8 @@
       state.currentPage = parseInt(localStorage.getItem(readingKey('page')) || '1', 10);
       state.theme = localStorage.getItem('libby-lean-theme') || 'warm';
       state.font = localStorage.getItem('libby-lean-font') || 'book';
-      state.fontSize = parseInt(localStorage.getItem('libby-lean-font-size') || '19', 10);
+      const preferred = Number(localStorage.getItem('reader-font-size-v2'));
+      state.fontSize = preferred >= 14 && preferred <= 28 ? preferred : (matchMedia('(pointer: coarse)').matches ? 21 : 18);
       state.layoutMode = localStorage.getItem('libby-lean-layout') || 'single';
       const bmarks = localStorage.getItem(readingKey('bookmarks'));
       if (bmarks) state.bookmarks = JSON.parse(bmarks);
@@ -190,11 +191,7 @@
     const btn = document.getElementById('btn-start-reading');
     const textSpan = document.getElementById('btn-start-reading-text');
     if (btn && textSpan) {
-      if (state.currentPage > 1) {
-        textSpan.textContent = `متابعة القراءة • ص. ${state.currentPage}`;
-      } else {
-        textSpan.textContent = `ابدأ القراءة • ص. 1`;
-      }
+      textSpan.textContent = 'متابعة القراءة';
     }
     updatePauseMarkerUI();
   }
@@ -321,7 +318,9 @@
 
     return {
       title: cur.title,
-      remaining: remaining
+      remaining: remaining,
+      startPage: cur.page,
+      endPage
     };
   }
 
@@ -351,12 +350,31 @@
 
   function goToPage(pageNum, animate = true) {
     const clamped = Math.max(1, Math.min(state.totalPages, pageNum));
+    const changed = clamped !== state.currentPage;
     state.currentPage = clamped;
 
     applyPageTransform(false);
     state.readingLocation = captureLocation();
     updateHudStats();
     saveState(true);
+    if (changed) flashChapterProgress();
+  }
+
+  let chapterFlash;
+  function flashChapterProgress() {
+    const panel = document.getElementById('chapter-progress');
+    const chapter = getActiveChapterInfo(state.currentPage);
+    const start = chapter.startPage || 1, end = chapter.endPage || state.totalPages;
+    const percent = Math.round(100 * (state.currentPage - start + 1) / Math.max(1, end - start + 1));
+    document.getElementById('chapter-progress-title').textContent = chapter.title;
+    document.getElementById('chapter-progress-value').value = percent;
+    document.getElementById('chapter-progress-label').textContent = `${percent}٪`;
+    chapterFlash?.cancel();
+    const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    chapterFlash = panel.animate(reduced ? [{ opacity: 1 }, { opacity: 1 }] : [
+      { opacity: 0, offset: 0 }, { opacity: 1, offset: .25 },
+      { opacity: 1, offset: .75 }, { opacity: 0, offset: 1 }
+    ], { duration: 1000, easing: 'linear' });
   }
 
   function nextPage() {
@@ -425,8 +443,9 @@
       state.isHudVisible = !state.isHudVisible;
     }
 
-    if (hudTop) hudTop.classList.toggle('hud-hidden', !state.isHudVisible);
-    if (hudBottom) hudBottom.classList.toggle('hud-hidden', !state.isHudVisible);
+    const toggle = document.getElementById('reader-tools-toggle');
+    toggle.classList.toggle('is-revealed', state.isHudVisible);
+    if (state.isHudVisible) toggle.focus({ preventScroll: true });
   }
 
   // --- Dynamic Chapter Markers along Timeline ---
@@ -526,6 +545,7 @@
   }
 
   function applyFontSize(size) {
+    size = Math.max(14, Math.min(28, Number(size) || 18));
     state.fontSize = size;
     document.documentElement.style.setProperty('--reader-font-size', `${size}px`);
     const display = document.getElementById('font-size-val-display');
@@ -761,9 +781,6 @@
     }
     document.getElementById('saved-page-actions').hidden = !marker;
     document.getElementById('saved-page-label').textContent = marker ? `الصفحة المحفوظة: ${marker.page}` : '';
-    const banner = document.getElementById('cover-pause-banner');
-    banner.style.display = marker ? 'flex' : 'none';
-    document.getElementById('cover-pause-snippet').textContent = marker ? `ص. ${marker.page} • ${marker.snippet || ''}` : '';
     document.getElementById('saved-page-indicator').hidden = !marked;
   }
 
@@ -784,19 +801,6 @@
     const startReadingBtn = document.getElementById('btn-start-reading');
     if (startReadingBtn) {
       startReadingBtn.addEventListener('click', () => openReader());
-    }
-
-    const coverResumePauseBtn = document.getElementById('btn-cover-resume-pause');
-    if (coverResumePauseBtn) {
-      coverResumePauseBtn.addEventListener('click', resumeFromPauseMarker);
-    }
-
-    const browseTocBtn = document.getElementById('btn-browse-toc');
-    if (browseTocBtn) {
-      browseTocBtn.addEventListener('click', () => {
-        renderToc();
-        openModal('modal-toc');
-      });
     }
 
     // Reader Top HUD Actions
@@ -864,8 +868,9 @@ const btnAppearance = document.getElementById('btn-hud-appearance');
     const toolsToggle = document.getElementById('reader-tools-toggle');
     const toolsPanel = document.getElementById('reader-tools-panel');
     toolsPanel.append(document.getElementById('reader-hud-top'), document.getElementById('reader-hud-bottom'));
-    const closeTools = () => { toolsPanel.hidden = true; toolsToggle.setAttribute('aria-expanded', 'false'); };
+    const closeTools = () => { toolsPanel.hidden = true; toolsToggle.setAttribute('aria-expanded', 'false'); toolsToggle.classList.remove('is-revealed'); };
     toolsToggle.addEventListener('click', () => {
+      toolsToggle.classList.add('is-revealed');
       toolsPanel.hidden = !toolsPanel.hidden;
       toolsToggle.setAttribute('aria-expanded', String(!toolsPanel.hidden));
     });
@@ -953,7 +958,7 @@ const btnAppearance = document.getElementById('btn-hud-appearance');
       isHorizontalGesture = false;
       readerTouchActive = false;
       if (!viewReader || !viewReader.classList.contains('active') || state.layoutBusy || !document.getElementById('book-library').hidden) return;
-      if (e.target.closest('button, a, input, select, textarea, .modal-backdrop, .modal-sheet')) return;
+      if (e.target.closest('button, a, input, select, textarea, dialog, .modal-backdrop, .modal-sheet')) return;
 
       if(e.touches.length !== 1) {isHorizontalGesture=false;return;}
       readerTouchActive = true;

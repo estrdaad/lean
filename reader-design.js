@@ -12,7 +12,6 @@
         const label = document.createElement('span'); label.className = 'control-label'; label.textContent = 'حفظ الصفحة'; element.append(label);
       }
     }
-    document.querySelector('#btn-cover-resume-pause svg')?.replaceWith(new DOMParser().parseFromString(icons.bookmark, 'image/svg+xml').documentElement);
     document.querySelectorAll('[data-open-library]').forEach(button => { button.insertAdjacentHTML('afterbegin', icons.library); });
     const toggle = document.getElementById('reader-tools-toggle'), panel = document.getElementById('reader-tools-panel');
     let stop;
@@ -21,7 +20,7 @@
       panel.style.width = Math.min(580, window.innerWidth - 24) + 'px';
       const {computePosition, offset, flip, shift, size} = window.FloatingUIDOM;
       const result = await computePosition(toggle, panel, {
-        strategy: 'fixed', placement: 'top',
+        strategy: 'fixed', placement: 'bottom',
         middleware: [offset(12), flip({padding:12}), shift({padding:12}), size({padding:12, apply({availableHeight}) { panel.style.maxHeight = Math.max(60, availableHeight) + 'px'; }})]
       });
       if (panel.hidden) return;
@@ -33,7 +32,7 @@
     }).observe(panel, {attributes:true, attributeFilter:['hidden']});
     document.addEventListener('click', event => {
       if (!panel.hidden && !panel.contains(event.target) && !toggle.contains(event.target)) {
-        panel.hidden = true; toggle.setAttribute('aria-expanded', 'false');
+        panel.hidden = true; toggle.setAttribute('aria-expanded', 'false'); toggle.classList.remove('is-revealed');
       }
     });
     document.addEventListener('keydown', event => {

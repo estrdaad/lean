@@ -12,6 +12,15 @@
 .library-button:disabled { opacity: .5; cursor: default; }
 #library-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 24px; }
 .library-card { background: var(--bg-card, white); border: 1px solid var(--border-subtle, #d5d7cf); border-radius: 22px; padding: 22px; }
+.library-card { position: relative; border-radius: 14px; }
+.library-card-open { padding: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: inherit; cursor: pointer; }
+.library-card-open::after { content: ''; position: absolute; inset: 0; border-radius: 14px; }
+.library-card:focus-within { outline: 2px solid var(--libby-teal); outline-offset: 3px; }
+.library-card-actions { position: relative; z-index: 1; }
+.library-card-actions .library-button { border-radius: 8px; min-height: 40px; padding: 8px 14px; font-family: sans-serif; letter-spacing: .03em; }
+.library-card:hover { border-color: var(--libby-teal); }
+.library-card .library-cover-placeholder { padding: 40px; opacity: .7; }
+@media (max-width: 600px) { .library-card .library-cover-placeholder { padding: 12px; } }
 .library-card img { display: block; height: 240px; width: 100%; object-fit: contain; margin-bottom: 20px; border-radius: 8px; }
 .library-card h2 { font-size: 19px; line-height: 1.6; margin: 0 0 8px; }
 .library-card p { margin: 0 0 12px; }

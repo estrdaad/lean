@@ -158,24 +158,26 @@
     for (const book of await allBooks()) {
       const card = document.createElement('article'); card.className = 'library-card';
       const image = document.createElement('img'); const source = book.assets[book.cover] || book.cover;
-      if (source) { image.src = source; image.alt = `غلاف ${book.title}`; } else { image.hidden = true; }
-      const title = document.createElement('h2'); title.textContent = book.title;
+      image.src = source || 'vendor/reader-book.svg'; image.alt = source ? `غلاف ${book.title}` : '';
+      if (!source) image.className = 'library-cover-placeholder';
+      const title = document.createElement('h2');
+      const open = button(book.title, () => {
+        if (busy) return;
+        if (book.id === activeBook.id && book.contentHtml === activeBook.contentHtml) { closeLibrary(); window.LibbyApp.openCover(); return; }
+        try {
+          storeSetting('reader-active-book', book.id);
+          history.replaceState(null, '', location.pathname + location.search);
+          location.reload();
+        } catch (_) { report('تعذر حفظ اختيار الكتاب في هذا المتصفح.', true); }
+      });
+      open.className = 'library-card-open'; title.append(open);
       const author = document.createElement('p'); author.textContent = book.author;
       const progress = document.createElement('p'); progress.className = 'library-progress';
       const page = Number(setting(bookKey(book.id, 'page'))) || 1;
       progress.textContent = page > 1 ? `آخر موضع قراءة: ص. ${page}` : 'جاهز للقراءة';
       const actions = document.createElement('div'); actions.className = 'library-card-actions';
-      actions.append(button(book.id === activeBook.id ? 'متابعة القراءة' : 'فتح الكتاب', () => {
-        if (busy) return;
-        if (book.id === activeBook.id && book.contentHtml === activeBook.contentHtml && book.title === activeBook.title && book.cover === activeBook.cover) { closeLibrary(); window.LibbyApp.openReader(); return; }
-        try {
-          storeSetting('reader-active-book', book.id);
-          // Each book gets a fresh reader instance, preventing stale search/footnote/pin state.
-          history.replaceState(null, '', location.pathname + location.search);
-          location.reload();
-        } catch (_) { report('تعذر حفظ اختيار الكتاب في هذا المتصفح.', true); }
-      }), button('تصدير الكتاب', async () => {
-        try { download(await loadBook(book), book.id + '.json'); }
+      actions.append(button('PDF', async () => {
+        try { await window.BookPDF.open(await loadBook(book)); }
         catch (error) { report(error.message, true); }
       }));
       card.append(image, title, author, progress, actions); grid.append(card);
