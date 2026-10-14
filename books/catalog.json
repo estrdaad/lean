@@ -22,5 +22,13 @@
     "description": "نسخة عربية منقحة ومخففة الإطالة، مع المصطلحات والرسوم الأساسية، دون الحواشي والمراجع والملحقات.",
     "sourcePages": 347,
     "path": "books/principles-ray-dalio-ar.json"
+  },
+  {
+    "id": "steve-jobs-ar",
+    "title": "ستيف جوبز",
+    "author": "والتر آيزاكسون",
+    "description": "ترجمة عربية قيد الاستكمال • المقدمة والفصول ١–١٢ • مع الصور الافتتاحية",
+    "sourcePages": 848,
+    "path": "books/steve-jobs-ar.json"
   }
 ]
