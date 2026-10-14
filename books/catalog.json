@@ -14,5 +14,13 @@
     "description": "نسخة عربية منقحة بمقابلة الأصل الإنجليزي، مع الصور والجداول والحواشي.",
     "sourcePages": 539,
     "path": "books/good-to-great-revised.json"
+  },
+  {
+    "id": "principles-ray-dalio-ar",
+    "title": "المبادئ",
+    "author": "راي داليو",
+    "description": "نسخة عربية منقحة ومخففة الإطالة، مع المصطلحات والرسوم الأساسية، دون الحواشي والمراجع والملحقات.",
+    "sourcePages": 347,
+    "path": "books/principles-ray-dalio-ar.json"
   }
 ]
