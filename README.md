@@ -14,6 +14,8 @@
 - `book-library.js` و`book-library.css`: المكتبة وصيغة الكتب والتخزين والاستيراد والتصدير.
 - `libby-reader.js` و`libby-reader.css`: أدوات القراءة والتقليب والبحث والدبابيس.
 - `books/lean-startup.json`: محتوى الكتاب المرفق، منفصل عن الواجهة.
+- `books/good-to-great-revised.json`: النسخة العربية المنقحة من «من جيد إلى عظيم» لجيم كولينز، متاحة تلقائيًا في المكتبة عبر `books/catalog.json`، مع الصور والفهرس والحواشي.
+- `books/good-strategy-bad-strategy-ar.json`: ترجمة متن «الاستراتيجية الجيدة والاستراتيجية السيئة» لريتشارد روملت، بفصوله الثمانية عشر ورسومه الأصلية، متاحة من المكتبة عبر `books/catalog.json`.
 - `books/bundled-book.js`: نسخة بديلة لفتح التطبيق مباشرة من الملفات.
 - `fonts.css` و`book-original.css`: الخطوط وتنسيقات المحتوى المشتركة.
 - `book-figures/` و`lean-startup.pdf`: الأصول وملف المصدر السابق.

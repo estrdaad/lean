@@ -22,5 +22,13 @@
     "description": "نسخة عربية منقحة ومخففة الإطالة، مع المصطلحات والرسوم الأساسية، دون الحواشي والمراجع والملحقات.",
     "sourcePages": 347,
     "path": "books/principles-ray-dalio-ar.json"
+  },
+  {
+    "id": "good-strategy-bad-strategy-ar",
+    "title": "الاستراتيجية الجيدة والاستراتيجية السيئة",
+    "author": "ريتشارد ب. روملت",
+    "description": "ترجمة عربية لمتن الكتاب: المقدمة والفصول الثمانية عشر، مع الرسوم الأصلية والحواشي المبسطة. فهرس الأعلام الورقي والصفحات الدعائية غير مدرجين.",
+    "sourcePages": 246,
+    "path": "books/good-strategy-bad-strategy-ar.json"
   }
 ]
