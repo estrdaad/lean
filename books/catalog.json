@@ -30,5 +30,13 @@
     "description": "ترجمة عربية لمتن الكتاب: المقدمة والفصول الثمانية عشر، مع الرسوم الأصلية والحواشي المبسطة. فهرس الأعلام الورقي والصفحات الدعائية غير مدرجين.",
     "sourcePages": 246,
     "path": "books/good-strategy-bad-strategy-ar.json"
+  },
+  {
+    "id": "steve-jobs-ar",
+    "title": "ستيف جوبز",
+    "author": "والتر آيزاكسون",
+    "description": "ترجمة عربية قيد الاستكمال • المقدمة والفصول ١–١٢ • مع الصور الافتتاحية",
+    "sourcePages": 848,
+    "path": "books/steve-jobs-ar.json"
   }
 ]
