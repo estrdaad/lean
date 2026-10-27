@@ -166,7 +166,10 @@
         if (book.id === activeBook.id && book.contentHtml === activeBook.contentHtml) { closeLibrary(); window.LibbyApp.openCover(); return; }
         try {
           storeSetting('reader-active-book', book.id);
-          history.replaceState(null, '', location.pathname + location.search);
+          const nextURL = new URL(location.href);
+          for (const key of ['book', 'chapter', 'block', 'offset']) nextURL.searchParams.delete(key);
+          nextURL.hash = '';
+          history.replaceState(null, '', nextURL.pathname + nextURL.search);
           location.reload();
         } catch (_) { report('تعذر حفظ اختيار الكتاب في هذا المتصفح.', true); }
       });
@@ -231,7 +234,8 @@
     try { database = await openDatabase(); } catch (_) { report('تخزين الكتب غير متاح في هذا المتصفح. يمكنك قراءة الكتاب المرفق وتصديره.', true); document.getElementById('library-import').disabled = true; }
     let books;
     try { books = await allBooks(); } catch (_) { database = null; books = [defaultBook]; report('تعذر الوصول إلى الكتب المحفوظة. يُعرض الكتاب المرفق مؤقتًا.', true); document.getElementById('library-import').disabled = true; }
-    activeBook = books.find(book => book.id === setting('reader-active-book')) || books[0];
+    const requestedBook = new URLSearchParams(location.search).get('book');
+    activeBook = books.find(book => book.id === requestedBook) || books.find(book => book.id === setting('reader-active-book')) || books[0];
     try { activeBook = await loadBook(activeBook); }
     catch (error) { activeBook = defaultBook; report(error.message, true); }
     hydrateBook(activeBook); migrateOldProgress();

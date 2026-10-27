@@ -4,3 +4,9 @@
 .firebase/
 firebase-debug.log*
 .playwright-mcp/
+node_modules/
+chatgpt-bridge/public/
+chatgpt-bridge/.wrangler/
+.env
+.env.*
+!.env.example

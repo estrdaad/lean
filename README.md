@@ -57,3 +57,9 @@ npx -y firebase-tools@latest deploy --only firestore --project gog-reader-202610
 ## ستيف جوبز
 
 `books/steve-jobs-ar.json` نسخة عربية قيد الاستكمال تضم الصفحات التمهيدية والمقدمة والفصول 1–12، مع صور البداية. تُضاف تلقائيًا إلى مكتبة القارئ عبر `books/catalog.json` وتستخدم خطوطه وأدوات القراءة نفسها.
+
+## المناقشة داخل ChatGPT
+
+خدمة MCP في `chatgpt-bridge/` تتيح لـChatGPT قراءة كتب المكتبة العامة والبحث فيها مع مراجع إلى النص. خطة التنفيذ في [docs/CHATGPT-INTEGRATION-PLAN.md](docs/CHATGPT-INTEGRATION-PLAN.md)، وخطوات المستخدم في [chatgpt-setup.html](chatgpt-setup.html). زر «ناقش في ChatGPT» ضمن أدوات القراءة يجهز سياقًا ينسخه المستخدم صراحة إلى المحادثة.
+
+عند تعديل كتاب أو فهرس المكتبة، شغّل `python3 tools/build-chatgpt-library.py` وانشر مجلد `chatgpt-data/` مع القارئ. خدمة Cloudflare للقراءة فقط، ولا تحتاج مفتاح OpenAI API، ولا تتصل بمواضع القراءة أو الملاحظات. نجاح نشرها لا يعني تثبيت الاتصال في حساب ChatGPT تلقائيًا.
