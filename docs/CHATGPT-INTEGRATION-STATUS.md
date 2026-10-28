@@ -1,42 +1,26 @@
-# حالة الربط — 2026-10-27
+# Integration status - 2026-10-28
 
-## أُنجز واختُبر
+## Completed
 
-- خطة الربط والتشغيل المجاني: CHATGPT-INTEGRATION-PLAN.md.
-- مولد بيانات الكتب الخمسة: 6,871 مقطعًا، 1,416 ملف بيانات/فهرس، نحو 14.8MB.
-- أدوات MCP الخمس للقراءة فقط، مع pagination، بصمات النص، مراجع المقاطع، والبحث العربي.
-- 5 مجموعات اختبارات ناجحة بعميل MCP الرسمي، تشمل أخطاء البروتوكول والحدود والمسارات غير المسموحة.
-- اختبار القارئ على الحاسوب والهاتف: مطابقة 171 مقطعًا مع النص في DOM، وفتح سياق المناقشة، وتغيير الكتاب بعد الدخول برابط، وصفحة الإعداد دون تجاوز عرض الشاشة.
-- صور الفحص ونتائج المتصفح في output/chatgpt-bridge/؛ ليست مطلوبة لتشغيل الموقع.
-- حُفظت المصادر والبيانات في commit محلي ec81d12.
+Five books, 6,871 passages, five read-only MCP tools, six passing official-client test groups. Desktop/mobile reader checks matched 171 passages exactly. Reader and index data are published to estrdaad/lean main.
 
-## Cloudflare
+## Production verified
 
-نُشرت خدمة goog-reader-mcp وفُعّل workers.dev على حساب المستخدم. لا تتضمن قاعدة بيانات أو موارد مدفوعة، ولم يُغيّر اشتراك الحساب. لا يتيح موصل OAuth قراءة الفوترة؛ الاعتماد على الحساب المجاني الذي أنشأه المستخدم، لا على تحقق مستقل من الفواتير.
+Endpoint: https://goog-reader-mcp.estrdaad-reader.workers.dev/mcp
 
-عنوان الاتصال: https://goog-reader-mcp.estrdaad-reader.workers.dev/mcp
+Account: e72f293e51d912ea1de6e89eef38ae15 (Estrdaad12).
+Version: 70f9c833-a147-4646-a153-6e26fb1a32ef.
 
-آخر فحص /health أعاد HTTP 503 وLibrary assets unavailable لأن الملفات الجديدة لم تصل إلى GitHub Pages بعد. لذلك لم توضع حالة verified في chatgpt-config.json، ولم يُدعَ نجاح الربط النهائي.
+The official MCP client passed against production: 5 tools, 5 books, 3 search results, exact passage retrieval and chapter pagination (nextStart=2). chatgpt-config.json is now verified. No database or paid service was added. Wrangler device authorization succeeded with account:read, user:read, workers_scripts:write, workers_routes:write and its required offline_access. No credentials are in the repository.
 
-## المتبقي وسبب التعطل
+## Remaining account-specific acceptance
 
-1. نشر commit المحلي إلى estrdaad/lean: رفض GitHub الرفع HTTP 403 لأن الحساب المتصل حاليًا shabih11 لديه pull فقط وليس push. يلزم اتصال GitHub بحساب يملك الكتابة، أو إضافة الصلاحية من صاحب المستودع. لا توجد مشكلة تعارض مع main وقت الفحص.
-2. إعادة التحقق من العنوان العام بعد نشر Pages باستخدام scripts/verify.mjs؛ يجب نجاح list_books والبحث وقراءة الفصل وجلب المقطع. ثم تحديث chatgpt-config.json إلى verified ونشره.
-3. تسجيل الدخول إلى ChatGPT في تبويب المتصفح المفتوح، وإضافة الاتصال بلا مصادقة، وتجربة نداء أداة من محادثة فعلية. لم ينفذ ذلك بعد، ولا يُعد اختبار العميل المحلي بديلًا عنه.
-4. موصل Cloudflare كان متاحًا وقت النشر ثم اختفت أدواته من الجلسة؛ يلزم إتاحته إذا احتاجت الخدمة تعديلًا.
+Install a custom MCP connection in the user's ChatGPT account, using this endpoint with no authentication; invoke it in a conversation and verify a real tool call. This has NOT yet been verified. Service verification does not mean automatic installation in ChatGPT. See chatgpt-setup.html.
 
-## الاستئناف
+## Operational notes
 
-بعد تصحيح GitHub، افحص head البعيد أولًا ثم ارفع HEAD:main دون force. بعد اكتمال Pages شغّل:
+Cloudflare rejects fetch redirect:error; manual mode now rejects redirects explicitly. Both workerd and production passed after the fix.
 
-```
-node chatgpt-bridge/scripts/verify.mjs https://goog-reader-mcp.estrdaad-reader.workers.dev/mcp
-```
+A separate Hello World Worker was created during browser troubleshooting in account 99acf431b91f215bf9ee27ce3ca6ed9e (Iamspecial0011), but it is not used by this integration. The final endpoint remains on the original Estrdaad12 account. Browser control failed; deployment was completed through official Wrangler device authorization.
 
-إذا نجح، حدث حالة الإعداد وانشرها. اكمل ربط ChatGPT من التبويب؛ أي موافقة أو تسجيل دخول يحتاج جلسة المستخدم. لا تفعّل خطة مدفوعة ولا تنقل أسرارًا إلى ملفات المصدر.
-
-## تحديث 2026-10-28
-
-أصبحت صلاحية GitHub متاحة، ونجح نشر commit 16218aa إلى main. ملفات البيانات متاحة بالفعل على GitHub Pages (catalog HTTP 200). ظهر اختلاف runtime: Cloudflare لا يقبل redirect:error في fetch، على خلاف Node. صُحح إلى manual مع استمرار رفض أي استجابة redirect. أضيف اختبار يمنع رجوع الخطأ. نجحت المجموعات الست، ونجح عميل MCP الرسمي أمام محاكي Cloudflare مع جلب البيانات العامة الحقيقية: 5 أدوات، 5 كتب، 3 نتائج بحث، جلب مقطع مطابق، وnextStart=2.
-
-نسخة الإنتاج لا تزال تحتاج نشر هذا التصحيح. أدوات موصل Cloudflare غير معروضة حاليًا، وWrangler المحلي غير مسجل الدخول. فُتح تبويب Cloudflare على صفحة تسجيل الدخول، وتبويب ChatGPT عند نموذج الدخول. لا تُغيّر حالة chatgpt-config إلى verified حتى ينجح scripts/verify.mjs على عنوان الإنتاج.
+Unrelated books and output/tmp files were preserved. See CHATGPT-INTEGRATION-PLAN.md for the plan and chatgpt-bridge/README.md for deployment and maintenance.
