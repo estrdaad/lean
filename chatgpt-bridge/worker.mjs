@@ -38,7 +38,7 @@ async function asset(env, path) {
   if (existing && existing.binding === key && existing.expires > Date.now()) return existing.value;
   const response = env.ASSETS
     ? await env.ASSETS.fetch(new Request(`https://assets.local/data/${path}`))
-    : await fetch(new URL(path, origin), { redirect: 'error', signal: AbortSignal.timeout(12000), cf: {cacheTtl: 300, cacheEverything: true} });
+    : await fetch(new URL(path, origin), { redirect: 'manual', signal: AbortSignal.timeout(12000), cf: {cacheTtl: 300, cacheEverything: true} });
   if (!response.ok) throw new Error('Library asset unavailable');
   const value = await response.json();
   if (loaded.size >= 96) loaded.delete(loaded.keys().next().value);

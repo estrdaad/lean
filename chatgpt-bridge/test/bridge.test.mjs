@@ -43,3 +43,14 @@ test('malformed transport, untrusted Origin, size and method restrictions',async
  assert.equal((await worker.fetch(new Request('https://example.test/mcp'))).status,405);
  assert.equal((await worker.fetch(req(JSON.stringify({jsonrpc:'2.0',method:'notifications/initialized'})))).status,202);
 });
+test('edge-compatible remote fetch refuses redirects without unsupported redirect:error',async()=>{
+ const original=globalThis.fetch;const observed=[];
+ try{
+  globalThis.fetch=async(url,options)=>{observed.push({url:String(url),redirect:options.redirect});return new Response(JSON.stringify({books:[]}));};
+  const ok=await worker.fetch(new Request('https://bridge.test/health'),{DATA_ORIGIN:'https://raw.githubusercontent.com/estrdaad/lean/main/chatgpt-data/'});
+  assert.equal(ok.status,200);assert.equal(observed[0].redirect,'manual');assert.ok(observed[0].url.endsWith('/catalog.json'));
+  globalThis.fetch=async()=>new Response(null,{status:302,headers:{location:'https://untrusted.example'}});
+  const rejected=await worker.fetch(new Request('https://bridge.test/health'),{DATA_ORIGIN:'https://estrdaad.github.io/lean/chatgpt-data/'});
+  assert.equal(rejected.status,503);
+ }finally{globalThis.fetch=original;}
+});
