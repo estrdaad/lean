@@ -397,9 +397,9 @@
 
     let msg;
     if (status === 429 && isGemini) {
-      msg = 'تم بلوغ حد الباقة المجانية المؤقت لـ Gemini TTS (429). انتظر دقيقة ثم أعد المحاولة، أو أضف مفتاح Google Cloud TTS (Chirp 3 HD — 900,000 حرف مجاني شهريًا) من الإعدادات.';
+      msg = 'تم بلوغ حد الاستخدام المؤقت لـ Gemini TTS (429). انتظر دقيقة ثم أعد المحاولة، أو أضف مفتاح Google Cloud TTS (Chirp 3 HD) من الإعدادات.';
     } else if (status === 429) {
-      msg = `تم بلوغ الحد المجاني الآمن لـ ${engineLabel} (429).`;
+      msg = `تم بلوغ حد الاستخدام الآمن لـ ${engineLabel} (429).`;
     } else {
       const detail = parsed?.detail || parsed?.error || errText.slice(0, 140);
       msg = `خطأ ${engineLabel} (${status}): ${detail}`;
@@ -426,8 +426,8 @@
     if (!check.allowed) {
       const err = new Error(
         check.reason === 'monthly_cap'
-          ? 'تم بلوغ الحد الشهري الآمن (0$ مضمون) لـ Chirp 3 HD.'
-          : 'تم بلوغ الحد اليومي الآمن لتوزيع الرصيد المجاني على الشهر.'
+          ? 'تم بلوغ الحد الشهري الآمن لـ Chirp 3 HD.'
+          : 'تم بلوغ الحد اليومي الآمن لتوزيع الاستخدام على الشهر.'
       );
       err.code = 'QUOTA_GUARD';
       throw err;
@@ -675,7 +675,7 @@
       const engineName = result.engine === 'gemini-tts' ? 'Gemini 3.8 Flash-Lite TTS' : 'Chirp 3 HD';
       setReadStatus(result.source === 'cache'
         ? `يقرأ الآن: ${engineName} (من الذاكرة المؤقتة — 0 استهلاك)`
-        : `يقرأ الآن: ${engineName} (0$ ضمن الباقة المجانية)`);
+        : `يقرأ الآن: ${engineName}`);
 
       // Immediately prefetch next chunk while current chunk is playing for seamless transitions
       prefetchNextChunk();
@@ -799,9 +799,9 @@
     if (!check.allowed) {
       if (check.reason === 'cooldown') {
         const secs = Math.ceil(check.waitMs / 1000);
-        appendChatMessage('model', `انتظر ${secs} ثوانٍ لحماية حد الطلبات المجاني في الدقيقة (RPM).`);
+        appendChatMessage('model', `انتظر ${secs} ثوانٍ لحماية حد الطلبات في الدقيقة (RPM).`);
       } else {
-        appendChatMessage('model', 'تم بلوغ الحد اليومي الآمن للباقة المجانية في Gemini (0$). سيتجدد تلقائيًا غدًا.');
+        appendChatMessage('model', 'تم بلوغ الحد اليومي الآمن في Gemini. سيتجدد تلقائيًا غدًا.');
       }
       return;
     }
@@ -809,7 +809,7 @@
     const proxyBase = (settings.proxyUrl || '').trim().replace(/\/+$/, '');
     const apiKey = (settings.geminiApiKey || '').trim();
     if (!proxyBase && !apiKey) {
-      appendChatMessage('model', 'أضف مفتاح Gemini المجاني (من Google AI Studio دون بطاقة بنكية) أو رابط الوسيط من تبويب «الإعدادات» لبدء المناقشة.');
+      appendChatMessage('model', 'أضف مفتاح Gemini (من Google AI Studio) أو رابط الوسيط من تبويب «الإعدادات» لبدء المناقشة.');
       return;
     }
 
@@ -825,7 +825,7 @@
 
     discussion.busy = true;
     updateDiscussUI();
-    const pendingEl = appendChatMessage('model', 'يفكّر Gemini (الباقة المجانية)...');
+    const pendingEl = appendChatMessage('model', 'يفكّر Gemini...');
 
     try {
       let response;
@@ -969,12 +969,11 @@
   dock.innerHTML = `
     <header class="vai-header">
       <div class="vai-tabs" role="tablist">
-        <button type="button" class="vai-tab is-active" data-vai-tab="read" role="tab" aria-selected="true">${icon('headphones')} قراءة</button>
-        <button type="button" class="vai-tab" data-vai-tab="discuss" role="tab" aria-selected="false">${icon('message')} مناقشة</button>
-        <button type="button" class="vai-tab" data-vai-tab="settings" role="tab" aria-selected="false">${icon('settings')} الإعدادات</button>
+        <button type="button" class="vai-tab is-active" data-vai-tab="read" role="tab" aria-selected="true" aria-label="قراءة" title="قراءة">${icon('headphones')}</button>
+        <button type="button" class="vai-tab" data-vai-tab="discuss" role="tab" aria-selected="false" aria-label="مناقشة" title="مناقشة">${icon('message')}</button>
+        <button type="button" class="vai-tab" data-vai-tab="settings" role="tab" aria-selected="false" aria-label="الإعدادات" title="الإعدادات">${icon('settings')}</button>
       </div>
       <div class="vai-header-actions">
-        <span class="vai-cost-badge" id="vai-cost-badge">0.00$ مضمون</span>
         <button type="button" class="vai-icon-btn" id="vai-close-btn" aria-label="إغلاق لوحة الصوت والمناقشة" title="إغلاق">${icon('x')}</button>
       </div>
     </header>
@@ -984,12 +983,12 @@
         <div class="vai-player-card">
           <div class="vai-controls-row">
             <div class="vai-transport">
-              <button type="button" class="vai-play-btn" id="vai-play-btn">${icon('play')} استماع للصفحة</button>
+              <button type="button" class="vai-play-btn" id="vai-play-btn" aria-label="استماع للصفحة" title="استماع للصفحة">${icon('play')}</button>
               <button type="button" class="vai-circle-btn" id="vai-prev-chunk" title="المقطع السابق" aria-label="المقطع السابق">${icon('previous')}</button>
               <button type="button" class="vai-circle-btn" id="vai-next-chunk" title="المقطع التالي" aria-label="المقطع التالي">${icon('next')}</button>
               <button type="button" class="vai-circle-btn" id="vai-stop-btn" title="إيقاف" aria-label="إيقاف">${icon('stop')}</button>
             </div>
-            <button type="button" class="vai-switch-pill" id="vai-switch-to-discuss">${icon('message')} ناقش الصفحة</button>
+            <button type="button" class="vai-switch-pill" id="vai-switch-to-discuss" aria-label="ناقش الصفحة" title="ناقش الصفحة">${icon('message')}</button>
           </div>
           <div class="vai-status-line">
             <span class="vai-status-indicator"><span class="vai-live-dot" id="vai-live-dot"></span><span id="vai-read-status">جاهز للقراءة الصوتية.</span></span>
@@ -999,10 +998,10 @@
         </div>
         <div class="vai-quota-bar-wrap">
           <div class="vai-quota-row">
-            <span id="vai-chirp-quota-text">الرصيد المجاني: 0 / 900,000 حرف</span>
+            <span id="vai-chirp-quota-text">الاستخدام الشهري: 0 / 900,000 حرف</span>
             <div class="vai-quota-actions">
               <span id="vai-cache-saved-text">توفير الكاش: 0 حرف</span>
-              <button type="button" class="vai-bypass-btn" id="vai-bypass-daily-btn" aria-pressed="false" title="تجاوز الحد اليومي مع إبقاء السقف الشهري الآمن (0$) فعّالًا">${icon('zap')} تجاوز الحد اليومي</button>
+              <button type="button" class="vai-bypass-btn" id="vai-bypass-daily-btn" aria-pressed="false" title="تجاوز الحد اليومي مع إبقاء السقف الشهري الآمن فعّالًا" aria-label="تجاوز الحد اليومي">${icon('zap')}</button>
             </div>
           </div>
           <div class="vai-progress"><div class="vai-progress-fill" id="vai-chirp-bar"></div></div>
@@ -1012,30 +1011,30 @@
       <!-- TAB 2: DISCUSSION (Gemini Free Tier) -->
       <div class="vai-panel" data-vai-panel="discuss" hidden>
         <div class="vai-controls-row" style="margin-bottom:8px;">
-          <span class="vai-hint" id="vai-discuss-quota-text">Gemini المجاني اليوم: 0 / 20 طلب</span>
+          <span class="vai-hint" id="vai-discuss-quota-text">استخدام Gemini اليوم: 0 / 20 طلب</span>
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-            <button type="button" class="vai-bypass-btn" id="vai-discuss-bypass-btn" aria-pressed="false" title="تجاوز الحد اليومي للنقاش">${icon('zap')} تجاوز الحد اليومي</button>
-            <button type="button" class="vai-secondary-btn" id="vai-stop-reply-audio" hidden>${icon('stop')} إيقاف الصوت</button>
-            <button type="button" class="vai-switch-pill" id="vai-switch-to-read">${icon('headphones')} العودة للقراءة</button>
+            <button type="button" class="vai-bypass-btn" id="vai-discuss-bypass-btn" aria-pressed="false" title="تجاوز الحد اليومي للنقاش" aria-label="تجاوز الحد اليومي">${icon('zap')}</button>
+            <button type="button" class="vai-secondary-btn" id="vai-stop-reply-audio" hidden aria-label="إيقاف الصوت" title="إيقاف الصوت">${icon('stop')}</button>
+            <button type="button" class="vai-switch-pill" id="vai-switch-to-read" aria-label="العودة للقراءة" title="العودة للقراءة">${icon('headphones')}</button>
           </div>
         </div>
         <div class="vai-quick-prompts">
-          <button type="button" class="vai-chip" data-vai-prompt="لخّص هذه الصفحة في 3 نقاط سريعة.">لخّص الصفحة</button>
-          <button type="button" class="vai-chip" data-vai-prompt="ما الفكرة الأساسية التي يريد المؤلف إيصالها هنا؟">الفكرة الرئيسية</button>
-          <button type="button" class="vai-chip" data-vai-prompt="اطرح عليّ سؤالًا واحدًا لاختبار فهمي لهذا المقطع.">اختبر فهمي</button>
-          <button type="button" class="vai-chip" data-vai-prompt="أعطني مثالًا عمليًا يوضح ما ورد في هذه الصفحة.">مثال عملي</button>
+          <button type="button" class="vai-chip" data-vai-prompt="لخّص هذه الصفحة في 3 نقاط سريعة." aria-label="لخّص الصفحة" title="لخّص الصفحة">${icon('list')}</button>
+          <button type="button" class="vai-chip" data-vai-prompt="ما الفكرة الأساسية التي يريد المؤلف إيصالها هنا؟" aria-label="الفكرة الرئيسية" title="الفكرة الرئيسية">${icon('search')}</button>
+          <button type="button" class="vai-chip" data-vai-prompt="اطرح عليّ سؤالًا واحدًا لاختبار فهمي لهذا المقطع." aria-label="اختبر فهمي" title="اختبر فهمي">${icon('check')}</button>
+          <button type="button" class="vai-chip" data-vai-prompt="أعطني مثالًا عمليًا يوضح ما ورد في هذه الصفحة." aria-label="مثال عملي" title="مثال عملي">${icon('library')}</button>
         </div>
         <div class="vai-chat-log" id="vai-chat-log"></div>
         <form class="vai-chat-form" id="vai-chat-form">
           <input type="text" class="vai-chat-input" id="vai-chat-input" placeholder="اسأل Gemini عن هذه الصفحة أو المقطع المحدد...">
-          <button type="submit" class="vai-play-btn" id="vai-chat-send">إرسال</button>
+          <button type="submit" class="vai-play-btn" id="vai-chat-send" aria-label="إرسال" title="إرسال">${icon('next')}</button>
         </form>
       </div>
 
       <!-- TAB 3: SETTINGS & ZERO-COST GUARDRAILS -->
       <div class="vai-panel" data-vai-panel="settings" hidden>
         <div class="vai-settings-grid">
-          <p class="vai-hint">تُحفظ المفاتيح محليًا في متصفحك فقط ولا تُرفع لأي مستودع. لضمان <strong>0$ شهريًا</strong>، يتوقف القارئ تلقائيًا عند بلوغ السقف الآمن قبل حدود الباقة المجانية. <a href="docs/GOOGLE-VOICE-SETUP.md" target="_blank" rel="noopener">دليل الإعداد المجاني</a></p>
+          <p class="vai-hint">تُحفظ المفاتيح محليًا في متصفحك فقط ولا تُرفع لأي مستودع. يتوقف القارئ تلقائيًا عند بلوغ حد الاستخدام المحدد. <a href="docs/GOOGLE-VOICE-SETUP.md" target="_blank" rel="noopener">دليل الإعداد</a></p>
           <div class="vai-field">
             <label for="vai-set-proxy">رابط الوسيط السحابي (Cloudflare Worker — اختياري)</label>
             <input id="vai-set-proxy" type="url" dir="ltr" placeholder="https://goog-voice-bridge.your-subdomain.workers.dev">
@@ -1045,15 +1044,15 @@
             <input id="vai-set-tts-key" type="password" dir="ltr" placeholder="AIza... (اختياري عند استخدام الوسيط)">
           </div>
           <div class="vai-field">
-            <label for="vai-set-gemini-key">مفتاح Gemini API المجاني (Google AI Studio — للمناقشة)</label>
-            <input id="vai-set-gemini-key" type="password" dir="ltr" placeholder="AIza... (بدون بطاقة بنكية)">
+            <label for="vai-set-gemini-key">مفتاح Gemini API (Google AI Studio — للمناقشة)</label>
+            <input id="vai-set-gemini-key" type="password" dir="ltr" placeholder="AIza...">
           </div>
           <div class="vai-field">
             <label for="vai-set-engine">محرك القراءة الصوتية</label>
             <select id="vai-set-engine">
-              <option value="auto">تلقائي: Chirp 3 HD ← Gemini TTS المجاني</option>
+              <option value="auto">تلقائي: Chirp 3 HD ← Gemini TTS</option>
               <option value="chirp3">Google Cloud Chirp 3: HD فقط</option>
-              <option value="gemini-tts">Gemini 3.8 Flash-Lite TTS (مجاني دون بطاقة)</option>
+              <option value="gemini-tts">Gemini 3.8 Flash-Lite TTS</option>
             </select>
           </div>
           <div class="vai-field">
@@ -1061,7 +1060,7 @@
             <select id="vai-set-voice">${Core.CHIRP3_VOICES.map(v => `<option value="${v.id}">${v.label}</option>`).join('')}</select>
           </div>
           <div class="vai-field">
-            <label for="vai-set-model">نموذج المناقشة (Gemini Free Tier)</label>
+            <label for="vai-set-model">نموذج المناقشة (Gemini)</label>
             <select id="vai-set-model">${Core.GEMINI_MODELS.map(m => `<option value="${m.id}">${m.label}</option>`).join('')}</select>
           </div>
           <div class="vai-field">
@@ -1069,18 +1068,31 @@
             <input id="vai-set-rate" type="range" min="0.75" max="1.6" step="0.05" value="1">
           </div>
           <label class="vai-check-row"><input type="checkbox" id="vai-set-autoturn">تقليب الصفحة تلقائيًا عند انتهاء قراءتها</label>
-          <label class="vai-check-row"><input type="checkbox" id="vai-set-concise">إجابات Gemini مختصرة (توفّر حتى 60% من استهلاك الجلسة المجانية)</label>
+          <label class="vai-check-row"><input type="checkbox" id="vai-set-concise">إجابات Gemini مختصرة</label>
           <label class="vai-check-row"><input type="checkbox" id="vai-set-speak-reply">قراءة ردود Gemini صوتيًا تلقائيًا (تستهلك من رصيد الصوت)</label>
           <div class="vai-settings-actions">
-            <button type="button" class="vai-play-btn" id="vai-save-settings">حفظ الإعدادات</button>
-            <button type="button" class="vai-secondary-btn" id="vai-clear-cache">مسح كاش الصوت</button>
-            <button type="button" class="vai-secondary-btn" id="vai-clear-chat">مسح المحادثة</button>
+            <button type="button" class="vai-play-btn" id="vai-save-settings" aria-label="حفظ الإعدادات" title="حفظ الإعدادات">${icon('check')}</button>
+            <button type="button" class="vai-secondary-btn" id="vai-clear-cache" aria-label="مسح كاش الصوت" title="مسح كاش الصوت">${icon('x')}</button>
+            <button type="button" class="vai-secondary-btn" id="vai-clear-chat" aria-label="مسح المحادثة" title="مسح المحادثة">${icon('x')}</button>
           </div>
         </div>
       </div>
     </div>
   `;
   document.body.appendChild(dock);
+
+  // Keep the dock above the on-screen keyboard and inside the visible viewport.
+  function fitDockToViewport() {
+    const viewport = window.visualViewport;
+    const height = viewport ? viewport.height : window.innerHeight;
+    const keyboardInset = viewport ? Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop) : 0;
+    dock.style.setProperty('--vai-viewport-height', `${height}px`);
+    dock.style.setProperty('--vai-keyboard-inset', `${keyboardInset}px`);
+  }
+  window.visualViewport?.addEventListener('resize', fitDockToViewport);
+  window.visualViewport?.addEventListener('scroll', fitDockToViewport);
+  window.addEventListener('resize', fitDockToViewport);
+  fitDockToViewport();
 
   // --- UI Helpers ---
   const elPlayBtn = dock.querySelector('#vai-play-btn');
@@ -1104,7 +1116,7 @@
     saveSettings({ bypassDailyCap: next });
     setReadStatus(
       next
-        ? 'تم تفعيل تجاوز الحد اليومي (مع بقاء السقف الشهري الآمن 0$ فعّالًا).'
+        ? 'تم تفعيل تجاوز الحد اليومي (مع بقاء السقف الشهري الآمن فعّالًا).'
         : 'تمت إعادة تفعيل الحد اليومي الآمن.'
     );
   }
@@ -1118,9 +1130,9 @@
   }
 
   function updateReadUI() {
-    elPlayBtn.innerHTML = playback.isPlaying
-      ? `${icon('pause')} إيقاف مؤقت`
-      : `${icon('play')} ${playback.isPaused ? 'متابعة القراءة' : 'استماع للصفحة'}`;
+    elPlayBtn.innerHTML = icon(playback.isPlaying ? 'pause' : 'play');
+    elPlayBtn.title = playback.isPlaying ? 'إيقاف مؤقت' : playback.isPaused ? 'متابعة القراءة' : 'استماع للصفحة';
+    elPlayBtn.setAttribute('aria-label', elPlayBtn.title);
     if (elLiveDot) elLiveDot.classList.toggle('is-playing', playback.isPlaying);
     updateMediaSession(playback.isPlaying);
     if (playback.chunks.length) {
@@ -1149,8 +1161,8 @@
       const cap = Number(remoteUsage.geminiTtsDailyCap) || 30;
       const pct = Math.min(100, Math.round((used / Math.max(1, cap)) * 100));
       elChirpQuotaText.textContent = bypassed
-        ? `Gemini TTS المجاني اليوم: ${used} صفحة (الحد اليومي مفتوح)`
-        : `Gemini TTS المجاني اليوم: ${used} / ${cap} صفحة (0.00$)`;
+        ? `Gemini TTS اليوم: ${used} صفحة (الحد اليومي مفتوح)`
+        : `Gemini TTS اليوم: ${used} / ${cap} صفحة`;
       elCacheSavedText.textContent = `تم توفير: ${fmt(snap.chirpSavedCacheChars + snap.chirpSavedCleanChars)} حرف`;
       elChirpBar.style.width = `${pct}%`;
     } else {
@@ -1168,12 +1180,14 @@
     const gemUsed = remoteUsage ? Number(remoteUsage.geminiDailyRequests) : snap.geminiDailyRequests;
     const gemCap = remoteUsage ? Number(remoteUsage.geminiDailyCap) : snap.geminiDailyCap;
     const discussDailyLabel = bypassed ? `${gemUsed} (الحد اليومي مفتوح)` : `${gemUsed} / ${gemCap} طلب`;
-    elDiscussQuotaText.textContent = `Gemini المجاني اليوم: ${discussDailyLabel} (توفير الكاش: ${snap.geminiSavedCacheRequests})`;
+    elDiscussQuotaText.textContent = `استخدام Gemini اليوم: ${discussDailyLabel} (توفير الكاش: ${snap.geminiSavedCacheRequests})`;
     [elBypassDailyBtn, elDiscussBypassBtn].forEach(btn => {
       if (!btn) return;
       btn.classList.toggle('is-active', bypassed);
       btn.setAttribute('aria-pressed', String(bypassed));
-      btn.innerHTML = bypassed ? `${icon('check')} الحد اليومي مفتوح` : `${icon('zap')} تجاوز الحد اليومي`;
+      btn.innerHTML = icon(bypassed ? 'check' : 'zap');
+      btn.title = bypassed ? 'إلغاء تجاوز الحد اليومي' : 'تجاوز الحد اليومي';
+      btn.setAttribute('aria-label', btn.title);
     });
   }
 
@@ -1187,7 +1201,9 @@
       const listenBtn = document.createElement('button');
       listenBtn.type = 'button';
       listenBtn.className = 'vai-secondary-btn';
-      listenBtn.innerHTML = `${icon('volume')} ${fromCache ? 'استماع (من الكاش)' : 'استماع للرد'}`;
+      listenBtn.innerHTML = icon('volume');
+      listenBtn.title = fromCache ? 'استماع (من الكاش)' : 'استماع للرد';
+      listenBtn.setAttribute('aria-label', listenBtn.title);
       listenBtn.addEventListener('click', () => speakReplyText(text));
       actions.appendChild(listenBtn);
       div.appendChild(actions);
@@ -1211,7 +1227,7 @@
       panel.hidden = panel.dataset.vaiPanel !== tabName;
     });
     if (tabName === 'settings') populateSettingsForm();
-    if (tabName === 'discuss') elChatInput.focus();
+    if (tabName === 'discuss' && matchMedia('(pointer: fine)').matches) elChatInput.focus({ preventScroll: true });
   }
 
   function populateSettingsForm() {

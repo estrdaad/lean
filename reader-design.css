@@ -96,3 +96,8 @@ button:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
 }
 
 @media print { #reader-tools-toggle, #reader-tools-panel, .chapter-progress, #pdf-dialog { display: none !important; } }
+
+/* Shared outline controls, aligned with Arabic labels. */
+button .reader-icon { display: inline-block; vertical-align: middle; }
+button .reader-icon:not(:last-child) { margin-inline-end: 0.35em; }
+.vai-icon-btn .reader-icon, .vai-circle-btn .reader-icon { margin: 0; }

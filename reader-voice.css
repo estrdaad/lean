@@ -514,3 +514,54 @@
     display: none !important;
   }
 }
+
+/* Fit the complete dock, including its header, inside the visible viewport. */
+#voice-ai-dock,
+#voice-ai-dock.is-expanded {
+  box-sizing: border-box;
+  inset-inline: 0;
+  bottom: calc(var(--vai-keyboard-inset, 0px) + 8px + env(safe-area-inset-bottom));
+  max-height: calc(var(--vai-viewport-height, 100dvh) - 24px - env(safe-area-inset-bottom) - env(safe-area-inset-top));
+  display: flex;
+  flex-direction: column;
+}
+#voice-ai-dock *, #voice-ai-dock *::before, #voice-ai-dock *::after { box-sizing: border-box; }
+#voice-ai-dock .vai-header { flex: 0 0 auto; }
+#voice-ai-dock .vai-body {
+  min-height: 0;
+  max-height: none;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+#voice-ai-dock button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
+  padding: 0;
+  touch-action: manipulation;
+}
+#voice-ai-dock button[hidden] { display: none; }
+#voice-ai-dock button .reader-icon { width: 20px; height: 20px; margin: 0; }
+#voice-ai-dock button:focus-visible,
+#voice-ai-dock input:focus-visible,
+#voice-ai-dock select:focus-visible { outline: 2px solid var(--libby-teal, #0e7c7b); outline-offset: 2px; }
+.vai-tabs { flex: 0 1 auto; }
+.vai-transport { flex-wrap: wrap; }
+.vai-status-line { flex-wrap: wrap; }
+.vai-status-indicator, .vai-field { min-width: 0; }
+.vai-msg, .vai-hint, .vai-chunk-preview, #vai-read-status { overflow-wrap: anywhere; }
+.vai-chat-log { max-height: min(42dvh, 360px); overscroll-behavior: contain; }
+.vai-chat-form { position: sticky; bottom: -1px; padding-block: 8px; background: var(--bg-paper, #faf5e9); }
+.vai-chat-input, .vai-field input, .vai-field select { width: 100%; max-width: 100%; font-size: 16px; }
+.vai-quick-prompts { gap: 8px; }
+@media (max-width: 360px) {
+  #voice-ai-dock .vai-header { padding: 6px; gap: 4px; }
+  #voice-ai-dock .vai-body { padding: 10px; }
+  .vai-tabs { gap: 0; padding: 2px; }
+  .vai-transport { gap: 4px; }
+}
