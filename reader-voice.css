@@ -1,0 +1,351 @@
+/* Dual-Mode Voice Reader (Chirp 3 HD) & Discussion (Gemini Free Tier) UI */
+
+#voice-ai-dock {
+  position: fixed;
+  z-index: 160;
+  inset-inline: 16px;
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  width: min(560px, calc(100vw - 24px));
+  margin-inline: auto;
+  background: var(--bg-paper, #faf5e9);
+  color: var(--text-main, #2c2822);
+  border: 1px solid var(--border-subtle, #d8cfc0);
+  border-radius: 20px;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.16);
+  font-family: 'Book Arabic', 'Cairo', sans-serif;
+  overflow: hidden;
+  direction: rtl;
+}
+
+#voice-ai-dock[hidden] {
+  display: none !important;
+}
+
+.vai-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-subtle, #d8cfc0);
+  background: var(--bg-card, rgba(0, 0, 0, 0.025));
+}
+
+.vai-tabs {
+  display: inline-flex;
+  gap: 4px;
+  background: var(--bg-canvas, rgba(0, 0, 0, 0.05));
+  padding: 3px;
+  border-radius: 12px;
+}
+
+.vai-tab {
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary, #665e52);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 9px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+  white-space: nowrap;
+}
+
+.vai-tab.is-active {
+  background: var(--bg-paper, #faf5e9);
+  color: var(--libby-teal, #0e7c7b);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+.vai-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.vai-cost-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(14, 124, 123, 0.12);
+  color: var(--libby-teal, #0e7c7b);
+  white-space: nowrap;
+}
+
+.vai-icon-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle, #d8cfc0);
+  background: var(--bg-paper, #faf5e9);
+  color: var(--text-main, #2c2822);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.vai-icon-btn:hover {
+  border-color: var(--libby-teal, #0e7c7b);
+  color: var(--libby-teal, #0e7c7b);
+}
+
+.vai-body {
+  padding: 12px 14px 14px;
+  max-height: min(62dvh, 460px);
+  overflow-y: auto;
+}
+
+.vai-panel[hidden] {
+  display: none !important;
+}
+
+/* Reading Mode (Chirp 3 HD) */
+.vai-controls-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.vai-transport {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.vai-play-btn {
+  min-height: 40px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--libby-teal, #0e7c7b);
+  color: #fff;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.vai-play-btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.vai-secondary-btn {
+  min-height: 36px;
+  padding: 0 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle, #d8cfc0);
+  background: var(--bg-paper, #faf5e9);
+  color: var(--text-main, #2c2822);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.vai-secondary-btn:hover {
+  border-color: var(--libby-teal, #0e7c7b);
+}
+
+.vai-status-line {
+  margin: 10px 0 6px;
+  font-size: 12.5px;
+  color: var(--text-secondary, #665e52);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.vai-chunk-preview {
+  font-size: 13px;
+  line-height: 1.65;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--bg-canvas, rgba(0, 0, 0, 0.035));
+  color: var(--text-main, #2c2822);
+  max-height: 68px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 10px;
+}
+
+.vai-quota-bar-wrap {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border-subtle, #d8cfc0);
+  font-size: 11.5px;
+  color: var(--text-secondary, #665e52);
+}
+
+.vai-quota-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.vai-progress {
+  width: 100%;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--track-bg, rgba(0, 0, 0, 0.08));
+  overflow: hidden;
+}
+
+.vai-progress-fill {
+  height: 100%;
+  background: var(--libby-teal, #0e7c7b);
+  width: 0%;
+  transition: width 0.25s ease;
+}
+
+/* Discussion Mode (Gemini Free Tier) */
+.vai-quick-prompts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.vai-chip {
+  border: 1px solid var(--border-subtle, #d8cfc0);
+  background: var(--bg-canvas, rgba(0, 0, 0, 0.03));
+  color: var(--text-main, #2c2822);
+  font: inherit;
+  font-size: 12px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.vai-chip:hover {
+  border-color: var(--libby-teal, #0e7c7b);
+  color: var(--libby-teal, #0e7c7b);
+}
+
+.vai-chat-log {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 210px;
+  overflow-y: auto;
+  padding: 6px 2px;
+  margin-bottom: 10px;
+}
+
+.vai-msg {
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-size: 13.5px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+}
+
+.vai-msg-user {
+  align-self: flex-start;
+  background: rgba(14, 124, 123, 0.12);
+  color: var(--text-main, #2c2822);
+  max-width: 90%;
+}
+
+.vai-msg-model {
+  align-self: stretch;
+  background: var(--bg-canvas, rgba(0, 0, 0, 0.04));
+  border: 1px solid var(--border-subtle, #d8cfc0);
+}
+
+.vai-msg-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.vai-chat-form {
+  display: flex;
+  gap: 6px;
+}
+
+.vai-chat-input {
+  flex: 1;
+  min-width: 0;
+  min-height: 38px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle, #d8cfc0);
+  background: var(--bg-paper, #faf5e9);
+  color: var(--text-main, #2c2822);
+  font: inherit;
+  font-size: 13.5px;
+}
+
+/* Settings & Zero-Cost Guardrails Panel */
+.vai-settings-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.vai-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.vai-field label {
+  font-weight: 600;
+  font-size: 12.5px;
+}
+
+.vai-field input,
+.vai-field select {
+  min-height: 36px;
+  padding: 6px 10px;
+  border-radius: 9px;
+  border: 1px solid var(--border-subtle, #d8cfc0);
+  background: var(--bg-paper, #faf5e9);
+  color: var(--text-main, #2c2822);
+  font: inherit;
+  font-size: 13px;
+}
+
+.vai-check-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+}
+
+.vai-check-row input {
+  accent-color: var(--libby-teal, #0e7c7b);
+}
+
+.vai-hint {
+  font-size: 11.5px;
+  color: var(--text-secondary, #665e52);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.vai-settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+@media print {
+  #voice-ai-dock {
+    display: none !important;
+  }
+}

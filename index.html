@@ -18,6 +18,7 @@
   <link rel="stylesheet" href="libby-reader.css">
   <link rel="stylesheet" href="book-library.css">
   <link rel="stylesheet" href="reader-design.css">
+  <link rel="stylesheet" href="reader-voice.css">
 </head>
 <body data-theme="warm" data-reader-font="book">
 
@@ -63,7 +64,7 @@
 
     <button id="reader-tools-toggle" type="button" aria-label="أدوات القراءة" aria-expanded="false" aria-controls="reader-tools-panel"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
     <div id="chapter-progress" class="chapter-progress" aria-hidden="true"><span id="chapter-progress-title"></span><progress id="chapter-progress-value" max="100" value="0"></progress><span id="chapter-progress-label"></span></div>
-    <div id="reader-tools-panel" hidden><div id="saved-page-actions" hidden><span id="saved-page-label"></span><button type="button" id="btn-saved-page-return">العودة إليها</button><button type="button" id="btn-saved-page-remove">إزالة العلامة</button></div><button type="button" class="btn-pill-subtle" data-open-library>المكتبة</button><button type="button" class="btn-pill-subtle" id="btn-chatgpt-discuss">ناقش في ChatGPT</button></div>
+    <div id="reader-tools-panel" hidden><div id="saved-page-actions" hidden><span id="saved-page-label"></span><button type="button" id="btn-saved-page-return">العودة إليها</button><button type="button" id="btn-saved-page-remove">إزالة العلامة</button></div><button type="button" class="btn-pill-subtle" data-open-library>المكتبة</button><button type="button" class="btn-pill-subtle" id="btn-voice-read">🎧 استماع (Chirp 3)</button><button type="button" class="btn-pill-subtle" id="btn-gemini-discuss">💬 ناقش (Gemini)</button><button type="button" class="btn-pill-subtle" id="btn-chatgpt-discuss">ناقش في ChatGPT</button></div>
     <!-- TOP HUD BAR (Header) -->
     <header class="reader-hud-top" id="reader-hud-top">
       <div class="hud-right-controls">
@@ -356,5 +357,7 @@
   <script src="firebase-config.js"></script>
   <script src="reader-sync.js"></script>
   <script src="reader-chatgpt.js"></script>
+  <script src="reader-voice-core.js"></script>
+  <script src="reader-voice.js"></script>
 </body>
 </html>

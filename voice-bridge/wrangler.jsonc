@@ -1,0 +1,19 @@
+{
+  "name": "goog-voice-bridge",
+  "main": "worker.mjs",
+  "compatibility_date": "2026-10-27",
+  "workers_dev": true,
+  "vars": {
+    "ALLOWED_ORIGINS": "https://estrdaad.github.io,http://localhost:8087,http://127.0.0.1:8087",
+    "CHIRP_MONTHLY_CAP": "900000",
+    "CHIRP_DAILY_CAP": "30000",
+    "GEMINI_DAILY_CAP": "20",
+    "GEMINI_TTS_DAILY_CAP": "15"
+  },
+  "kv_namespaces": [
+    {
+      "binding": "QUOTA_KV",
+      "id": "e093a7e26ac546c18c222198fe7e21cf"
+    }
+  ]
+}
