@@ -5,6 +5,8 @@
 (async function () {
   'use strict';
 
+  const icon = name => window.ReaderIcons[name];
+
   const Core = window.ReaderVoiceCore;
   if (!Core) return;
 
@@ -121,49 +123,69 @@
   async function cacheGetAudio(key) {
     const db = await openCacheDB();
     if (!db) return null;
-    return new Promise((resolve) => {
-      const tx = db.transaction(DB_STORE, 'readwrite');
-      const store = tx.objectStore(DB_STORE);
-      const req = store.get(key);
-      req.onsuccess = () => {
-        const rec = req.result;
-        if (rec) {
-          rec.touchedAt = Date.now();
-          store.put(rec);
-          resolve(rec.blob);
-        } else {
-          resolve(null);
-        }
-      };
-      req.onerror = () => resolve(null);
+    const rec = await new Promise((resolve) => {
+      try {
+        const tx = db.transaction(DB_STORE, 'readwrite');
+        const store = tx.objectStore(DB_STORE);
+        const req = store.get(key);
+        req.onsuccess = () => {
+          const r = req.result;
+          if (r && r.bytes) {
+            r.touchedAt = Date.now();
+            try { store.put(r); } catch {}
+            resolve(r);
+          } else {
+            // Discard legacy iOS Blob records that can throw NotFoundError on Safari
+            if (r) { try { store.delete(key); } catch {} }
+            resolve(null);
+          }
+        };
+        req.onerror = () => resolve(null);
+      } catch {
+        resolve(null);
+      }
     });
+    if (!rec || !rec.bytes) return null;
+    return new Blob([rec.bytes], { type: rec.mime || 'audio/wav' });
   }
 
   async function cachePutAudio(key, blob) {
     const db = await openCacheDB();
-    if (!db) return;
+    if (!db || !blob) return;
+    let bytes;
+    try {
+      bytes = new Uint8Array(await blob.arrayBuffer());
+    } catch {
+      return;
+    }
+    const mime = blob.type || 'audio/wav';
     return new Promise((resolve) => {
-      const tx = db.transaction(DB_STORE, 'readwrite');
-      const store = tx.objectStore(DB_STORE);
-      store.put({ key, blob, touchedAt: Date.now() });
-      const countReq = store.count();
-      countReq.onsuccess = () => {
-        if (countReq.result > MAX_CACHE_ENTRIES) {
-          const idx = store.index('touchedAt');
-          const cur = idx.openCursor();
-          let toDelete = countReq.result - MAX_CACHE_ENTRIES;
-          cur.onsuccess = () => {
-            const c = cur.result;
-            if (c && toDelete > 0) {
-              c.delete();
-              toDelete--;
-              c.continue();
-            }
-          };
-        }
-      };
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => resolve();
+      try {
+        const tx = db.transaction(DB_STORE, 'readwrite');
+        const store = tx.objectStore(DB_STORE);
+        store.put({ key, bytes, mime, touchedAt: Date.now() });
+        const countReq = store.count();
+        countReq.onsuccess = () => {
+          if (countReq.result > MAX_CACHE_ENTRIES) {
+            const idx = store.index('touchedAt');
+            const cur = idx.openCursor();
+            let toDelete = countReq.result - MAX_CACHE_ENTRIES;
+            cur.onsuccess = () => {
+              const c = cur.result;
+              if (c && toDelete > 0) {
+                c.delete();
+                toDelete--;
+                c.continue();
+              }
+            };
+          }
+        };
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => resolve();
+        tx.onabort = () => resolve();
+      } catch {
+        resolve();
+      }
     });
   }
 
@@ -947,13 +969,13 @@
   dock.innerHTML = `
     <header class="vai-header">
       <div class="vai-tabs" role="tablist">
-        <button type="button" class="vai-tab is-active" data-vai-tab="read" role="tab" aria-selected="true">🎧 قراءة</button>
-        <button type="button" class="vai-tab" data-vai-tab="discuss" role="tab" aria-selected="false">💬 مناقشة</button>
-        <button type="button" class="vai-tab" data-vai-tab="settings" role="tab" aria-selected="false">⚙️ الإعدادات</button>
+        <button type="button" class="vai-tab is-active" data-vai-tab="read" role="tab" aria-selected="true">${icon('headphones')} قراءة</button>
+        <button type="button" class="vai-tab" data-vai-tab="discuss" role="tab" aria-selected="false">${icon('message')} مناقشة</button>
+        <button type="button" class="vai-tab" data-vai-tab="settings" role="tab" aria-selected="false">${icon('settings')} الإعدادات</button>
       </div>
       <div class="vai-header-actions">
         <span class="vai-cost-badge" id="vai-cost-badge">0.00$ مضمون</span>
-        <button type="button" class="vai-icon-btn" id="vai-close-btn" aria-label="إغلاق لوحة الصوت والمناقشة" title="إغلاق">✕</button>
+        <button type="button" class="vai-icon-btn" id="vai-close-btn" aria-label="إغلاق لوحة الصوت والمناقشة" title="إغلاق">${icon('x')}</button>
       </div>
     </header>
     <div class="vai-body">
@@ -962,12 +984,12 @@
         <div class="vai-player-card">
           <div class="vai-controls-row">
             <div class="vai-transport">
-              <button type="button" class="vai-play-btn" id="vai-play-btn">▶ استماع للصفحة</button>
-              <button type="button" class="vai-circle-btn" id="vai-prev-chunk" title="المقطع السابق" aria-label="المقطع السابق">⏮</button>
-              <button type="button" class="vai-circle-btn" id="vai-next-chunk" title="المقطع التالي" aria-label="المقطع التالي">⏭</button>
-              <button type="button" class="vai-circle-btn" id="vai-stop-btn" title="إيقاف" aria-label="إيقاف">■</button>
+              <button type="button" class="vai-play-btn" id="vai-play-btn">${icon('play')} استماع للصفحة</button>
+              <button type="button" class="vai-circle-btn" id="vai-prev-chunk" title="المقطع السابق" aria-label="المقطع السابق">${icon('previous')}</button>
+              <button type="button" class="vai-circle-btn" id="vai-next-chunk" title="المقطع التالي" aria-label="المقطع التالي">${icon('next')}</button>
+              <button type="button" class="vai-circle-btn" id="vai-stop-btn" title="إيقاف" aria-label="إيقاف">${icon('stop')}</button>
             </div>
-            <button type="button" class="vai-switch-pill" id="vai-switch-to-discuss">💬 ناقش الصفحة</button>
+            <button type="button" class="vai-switch-pill" id="vai-switch-to-discuss">${icon('message')} ناقش الصفحة</button>
           </div>
           <div class="vai-status-line">
             <span class="vai-status-indicator"><span class="vai-live-dot" id="vai-live-dot"></span><span id="vai-read-status">جاهز للقراءة الصوتية.</span></span>
@@ -980,7 +1002,7 @@
             <span id="vai-chirp-quota-text">الرصيد المجاني: 0 / 900,000 حرف</span>
             <div class="vai-quota-actions">
               <span id="vai-cache-saved-text">توفير الكاش: 0 حرف</span>
-              <button type="button" class="vai-bypass-btn" id="vai-bypass-daily-btn" aria-pressed="false" title="تجاوز الحد اليومي مع إبقاء السقف الشهري الآمن (0$) فعّالًا">⚡ تجاوز الحد اليومي</button>
+              <button type="button" class="vai-bypass-btn" id="vai-bypass-daily-btn" aria-pressed="false" title="تجاوز الحد اليومي مع إبقاء السقف الشهري الآمن (0$) فعّالًا">${icon('zap')} تجاوز الحد اليومي</button>
             </div>
           </div>
           <div class="vai-progress"><div class="vai-progress-fill" id="vai-chirp-bar"></div></div>
@@ -992,9 +1014,9 @@
         <div class="vai-controls-row" style="margin-bottom:8px;">
           <span class="vai-hint" id="vai-discuss-quota-text">Gemini المجاني اليوم: 0 / 20 طلب</span>
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-            <button type="button" class="vai-bypass-btn" id="vai-discuss-bypass-btn" aria-pressed="false" title="تجاوز الحد اليومي للنقاش">⚡ تجاوز الحد اليومي</button>
-            <button type="button" class="vai-secondary-btn" id="vai-stop-reply-audio" hidden>⏹ إيقاف الصوت</button>
-            <button type="button" class="vai-switch-pill" id="vai-switch-to-read">🎧 العودة للقراءة</button>
+            <button type="button" class="vai-bypass-btn" id="vai-discuss-bypass-btn" aria-pressed="false" title="تجاوز الحد اليومي للنقاش">${icon('zap')} تجاوز الحد اليومي</button>
+            <button type="button" class="vai-secondary-btn" id="vai-stop-reply-audio" hidden>${icon('stop')} إيقاف الصوت</button>
+            <button type="button" class="vai-switch-pill" id="vai-switch-to-read">${icon('headphones')} العودة للقراءة</button>
           </div>
         </div>
         <div class="vai-quick-prompts">
@@ -1096,7 +1118,9 @@
   }
 
   function updateReadUI() {
-    elPlayBtn.textContent = playback.isPlaying ? '⏸ إيقاف مؤقت' : (playback.isPaused ? '▶ متابعة القراءة' : '▶ استماع للصفحة');
+    elPlayBtn.innerHTML = playback.isPlaying
+      ? `${icon('pause')} إيقاف مؤقت`
+      : `${icon('play')} ${playback.isPaused ? 'متابعة القراءة' : 'استماع للصفحة'}`;
     if (elLiveDot) elLiveDot.classList.toggle('is-playing', playback.isPlaying);
     updateMediaSession(playback.isPlaying);
     if (playback.chunks.length) {
@@ -1149,7 +1173,7 @@
       if (!btn) return;
       btn.classList.toggle('is-active', bypassed);
       btn.setAttribute('aria-pressed', String(bypassed));
-      btn.textContent = bypassed ? '✓ الحد اليومي مفتوح' : '⚡ تجاوز الحد اليومي';
+      btn.innerHTML = bypassed ? `${icon('check')} الحد اليومي مفتوح` : `${icon('zap')} تجاوز الحد اليومي`;
     });
   }
 
@@ -1163,7 +1187,7 @@
       const listenBtn = document.createElement('button');
       listenBtn.type = 'button';
       listenBtn.className = 'vai-secondary-btn';
-      listenBtn.textContent = fromCache ? '🔊 استماع (من الكاش)' : '🔊 استماع للرد';
+      listenBtn.innerHTML = `${icon('volume')} ${fromCache ? 'استماع (من الكاش)' : 'استماع للرد'}`;
       listenBtn.addEventListener('click', () => speakReplyText(text));
       actions.appendChild(listenBtn);
       div.appendChild(actions);
