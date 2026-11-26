@@ -394,6 +394,41 @@
     };
   }
 
+  function createPrefetchGate(options = {}) {
+    const requiredConsecutive = Math.max(1, Number(options.requiredConsecutive) || 3);
+    const windowMs = Math.max(1000, Number(options.windowMs) || 10 * 60 * 1000);
+    let completedAt = [];
+
+    function prune(now = Date.now()) {
+      completedAt = completedAt.filter(ts => now - ts <= windowMs);
+    }
+
+    function recordCompletedClip(now = Date.now()) {
+      prune(now);
+      completedAt.push(now);
+      if (completedAt.length > requiredConsecutive * 2) {
+        completedAt = completedAt.slice(-requiredConsecutive * 2);
+      }
+      return completedAt.length >= requiredConsecutive;
+    }
+
+    function isUnlocked(now = Date.now()) {
+      prune(now);
+      return completedAt.length >= requiredConsecutive;
+    }
+
+    function reset() {
+      completedAt = [];
+    }
+
+    function count(now = Date.now()) {
+      prune(now);
+      return completedAt.length;
+    }
+
+    return { recordCompletedClip, isUnlocked, reset, count };
+  }
+
   return {
     LIMITS,
     CHIRP3_VOICES,
@@ -407,6 +442,7 @@
     hashKey,
     makeAudioCacheKey,
     createQuotaTracker,
+    createPrefetchGate,
     buildGeminiPayload
   };
 });

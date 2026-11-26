@@ -13,6 +13,8 @@ const SAFE_GEMINI_DAILY_REQ = 20;
 const SAFE_GEMINI_TTS_DAILY_REQ = 30;
 const MAX_TTS_TEXT_CHARS = 700;
 const MAX_GEMINI_TTS_TEXT_CHARS = 2200;
+const AUDIO_KV_TTL_SECONDS = 180 * 86400; // 180 days persistent cross-device audio cache
+const MAX_KV_AUDIO_BYTES = 10 * 1024 * 1024; // Safe cap well under KV's 25 MiB limit
 const GEMINI_TTS_MODELS = [
   'gemini-3.8-flash-lite-tts',
   'gemini-3.8-flash-tts',
@@ -64,6 +66,44 @@ async function addCounter(env, key, delta, ttlSeconds) {
   return next;
 }
 
+function getAudioKv(env) {
+  return env?.AUDIO_KV || env?.QUOTA_KV || null;
+}
+
+async function getKvCachedAudio(env, key) {
+  const kv = getAudioKv(env);
+  if (!kv) return null;
+  try {
+    if (typeof kv.getWithMetadata === 'function') {
+      const { value, metadata } = await kv.getWithMetadata(key, { type: 'arrayBuffer' });
+      if (!value) return null;
+      return { bytes: value, metadata: metadata || {} };
+    }
+    const value = await kv.get(key, { type: 'arrayBuffer' });
+    if (!value) return null;
+    return { bytes: value, metadata: {} };
+  } catch {
+    return null;
+  }
+}
+
+async function putKvCachedAudio(env, key, bytes, metadata) {
+  const kv = getAudioKv(env);
+  if (!kv || !bytes) return false;
+  const byteLength = bytes.byteLength ?? bytes.length ?? 0;
+  if (!byteLength || byteLength > MAX_KV_AUDIO_BYTES) return false;
+  const ttl = Math.max(3600, Number(env.AUDIO_CACHE_TTL_SECONDS) || AUDIO_KV_TTL_SECONDS);
+  try {
+    const buf = bytes instanceof ArrayBuffer
+      ? bytes
+      : bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+    await kv.put(key, buf, { expirationTtl: ttl, metadata });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function corsHeaders(request, env) {
   const origin = request.headers.get('origin') || '';
   const allowed = (env.ALLOWED_ORIGINS || 'https://estrdaad.github.io,http://localhost:8087,http://127.0.0.1:8087')
@@ -75,6 +115,7 @@ function corsHeaders(request, env) {
     'access-control-allow-origin': matched,
     'access-control-allow-methods': 'POST, OPTIONS',
     'access-control-allow-headers': 'content-type',
+    'access-control-expose-headers': 'x-cache, x-tts-engine, x-tts-model',
     'vary': 'origin'
   };
 }
@@ -108,8 +149,9 @@ export async function handleTts(request, env, cors) {
   const voice = ALLOWED_VOICES.has(body.voice) ? body.voice : 'ar-XA-Chirp3-HD-Charon';
   const speakingRate = Math.min(1.6, Math.max(0.75, Number(body.speakingRate) || 1.0));
 
-  // Check Cloudflare Edge Cache first (0 characters spent on cache hit!)
+  // Check Cloudflare Edge Cache first, then persistent KV audio cache (0 characters spent on hit!)
   const cacheKeyHash = await sha256Hex(`${voice}|${speakingRate.toFixed(2)}|${text}`);
+  const kvAudioKey = `audio:chirp3:${cacheKeyHash}`;
   const cacheUrl = new Request(`https://tts-cache.local/${cacheKeyHash}.mp3`);
   const edgeCache = typeof caches !== 'undefined' ? caches.default : null;
   if (edgeCache) {
@@ -120,6 +162,24 @@ export async function handleTts(request, env, cors) {
       h.set('x-cache', 'HIT');
       return new Response(cached.body, { status: 200, headers: h });
     }
+  }
+
+  const kvCached = await getKvCachedAudio(env, kvAudioKey);
+  if (kvCached) {
+    const kvResp = new Response(kvCached.bytes, {
+      status: 200,
+      headers: {
+        'content-type': kvCached.metadata?.contentType || 'audio/mpeg',
+        'cache-control': 'public, max-age=2592000',
+        'x-cache': 'HIT-KV',
+        'x-tts-engine': 'chirp3',
+        ...cors
+      }
+    });
+    if (edgeCache) {
+      await edgeCache.put(cacheUrl, kvResp.clone());
+    }
+    return kvResp;
   }
 
   // Enforce hard $0.00/month limits BEFORE calling Google
@@ -164,12 +224,15 @@ export async function handleTts(request, env, cors) {
   const bytes = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
 
+  await putKvCachedAudio(env, kvAudioKey, bytes, { contentType: 'audio/mpeg', engine: 'chirp3' });
+
   const audioResp = new Response(bytes, {
     status: 200,
     headers: {
       'content-type': 'audio/mpeg',
       'cache-control': 'public, max-age=2592000',
       'x-cache': 'MISS',
+      'x-tts-engine': 'chirp3',
       ...cors
     }
   });
@@ -254,6 +317,7 @@ export async function handleGeminiTts(request, env, cors) {
   const voiceName = ALLOWED_GEMINI_VOICES.has(rawVoice) ? rawVoice : 'Charon';
 
   const cacheKeyHash = await sha256Hex(`gemini-tts-v3|${voiceName}|${text}`);
+  const kvAudioKey = `audio:gemini-tts:${cacheKeyHash}`;
   const cacheUrl = new Request(`https://tts-cache.local/${cacheKeyHash}.wav`);
   const edgeCache = typeof caches !== 'undefined' ? caches.default : null;
   if (edgeCache) {
@@ -265,6 +329,23 @@ export async function handleGeminiTts(request, env, cors) {
       h.set('x-tts-engine', 'gemini-tts');
       return new Response(cached.body, { status: 200, headers: h });
     }
+  }
+
+  const kvCached = await getKvCachedAudio(env, kvAudioKey);
+  if (kvCached) {
+    const headers = {
+      'content-type': kvCached.metadata?.contentType || 'audio/wav',
+      'cache-control': 'public, max-age=2592000',
+      'x-cache': 'HIT-KV',
+      'x-tts-engine': 'gemini-tts',
+      ...cors
+    };
+    if (kvCached.metadata?.model) headers['x-tts-model'] = kvCached.metadata.model;
+    const kvResp = new Response(kvCached.bytes, { status: 200, headers });
+    if (edgeCache) {
+      await edgeCache.put(cacheUrl, kvResp.clone());
+    }
+    return kvResp;
   }
 
   const dayKey = `gemini_tts:d:${utcDayKey()}`;
@@ -351,6 +432,12 @@ export async function handleGeminiTts(request, env, cors) {
     contentType = 'audio/wav';
   }
 
+  await putKvCachedAudio(env, kvAudioKey, bytes, {
+    contentType,
+    engine: 'gemini-tts',
+    model: usedModel
+  });
+
   const audioResp = new Response(bytes, {
     status: 200,
     headers: {
@@ -384,6 +471,7 @@ export default {
       return jsonResp({
         status: 'ok',
         kvPersistent: Boolean(env.QUOTA_KV),
+        audioCachePersistent: Boolean(getAudioKv(env)),
         secretsConfigured: {
           googleTts: Boolean(env.GOOGLE_TTS_API_KEY),
           gemini: Boolean(env.GEMINI_API_KEY)

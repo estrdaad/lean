@@ -184,3 +184,90 @@ test('voice-bridge worker falls back across Gemini TTS models on 429 and returns
     global.fetch = origFetch;
   }
 });
+
+test('voice-bridge worker stores and serves TTS audio from Cloudflare KV across devices with 0 extra quota', async () => {
+  const worker = (await import('../voice-bridge/worker.mjs')).default;
+  const origFetch = global.fetch;
+  const kvStore = new Map();
+  const mockKv = {
+    async get(key, opts) {
+      const entry = kvStore.get(key);
+      if (!entry) return null;
+      return opts?.type === 'arrayBuffer' ? entry.value : String(entry.value);
+    },
+    async getWithMetadata(key) {
+      const entry = kvStore.get(key);
+      if (!entry) return { value: null, metadata: null };
+      return { value: entry.value, metadata: entry.metadata || null };
+    },
+    async put(key, value, opts) {
+      kvStore.set(key, { value, metadata: opts?.metadata || null, ttl: opts?.expirationTtl });
+    }
+  };
+
+  let upstreamCalls = 0;
+  global.fetch = async () => {
+    upstreamCalls++;
+    return new Response(JSON.stringify({
+      candidates: [{ content: { parts: [{ inlineData: { data: 'UklGRg==', mimeType: 'audio/wav' } }] } }]
+    }), { status: 200, headers: { 'content-type': 'application/json' } });
+  };
+
+  try {
+    const env = { GEMINI_API_KEY: 'test-key', QUOTA_KV: mockKv };
+    const makeReq = () => new Request('https://worker.test/tts-gemini', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', origin: 'https://estrdaad.github.io' },
+      body: JSON.stringify({ text: 'فقرة محفوظة في السحابة', voice: 'Charon' })
+    });
+
+    // First device: MISS -> calls upstream & persists to KV
+    const res1 = await worker.fetch(makeReq(), env);
+    assert.equal(res1.status, 200);
+    assert.equal(res1.headers.get('x-cache'), 'MISS');
+    assert.equal(upstreamCalls, 1);
+
+    // Second device: HIT-KV -> served directly from KV without calling upstream or spending quota
+    const res2 = await worker.fetch(makeReq(), env);
+    assert.equal(res2.status, 200);
+    assert.equal(res2.headers.get('x-cache'), 'HIT-KV');
+    assert.equal(res2.headers.get('x-tts-engine'), 'gemini-tts');
+    assert.equal(res2.headers.get('content-type'), 'audio/wav');
+    assert.ok((res2.headers.get('access-control-expose-headers') || '').includes('x-cache'));
+    assert.equal(upstreamCalls, 1);
+
+    // /status reports persistent audio cache
+    const statusRes = await worker.fetch(new Request('https://worker.test/status'), env);
+    const statusJson = await statusRes.json();
+    assert.equal(statusJson.audioCachePersistent, true);
+    assert.equal(statusJson.usage.geminiTtsDailyRequests, 1);
+  } finally {
+    global.fetch = origFetch;
+  }
+});
+
+test('createPrefetchGate unlocks only after 3 consecutive clips within 10 minutes and resets on navigation', () => {
+  const gate = Core.createPrefetchGate({ requiredConsecutive: 3, windowMs: 10 * 60 * 1000 });
+  const t0 = Date.UTC(2026, 10, 26, 10, 0, 0);
+
+  assert.equal(gate.isUnlocked(t0), false);
+  assert.equal(gate.recordCompletedClip(t0), false);
+  assert.equal(gate.recordCompletedClip(t0 + 60_000), false);
+  assert.equal(gate.isUnlocked(t0 + 60_000), false);
+
+  // 3rd consecutive clip within 10 minutes unlocks prefetch
+  assert.equal(gate.recordCompletedClip(t0 + 120_000), true);
+  assert.equal(gate.isUnlocked(t0 + 180_000), true);
+
+  // Expires after 10 minutes from the earliest of the 3 clips
+  assert.equal(gate.isUnlocked(t0 + 10 * 60 * 1000 + 1), false);
+
+  // Manual navigation resets streak completely
+  gate.recordCompletedClip(t0 + 20 * 60 * 1000);
+  gate.recordCompletedClip(t0 + 21 * 60 * 1000);
+  gate.recordCompletedClip(t0 + 22 * 60 * 1000);
+  assert.equal(gate.isUnlocked(t0 + 22 * 60 * 1000), true);
+  gate.reset();
+  assert.equal(gate.isUnlocked(t0 + 22 * 60 * 1000), false);
+  assert.equal(gate.count(t0 + 22 * 60 * 1000), 0);
+});

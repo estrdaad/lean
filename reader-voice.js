@@ -273,15 +273,33 @@
   }
 
   // --- Audio Synthesis Backends (Chirp 3 HD + Free Browser Fallback) ---
-  let sharedAudio = new Audio();
+  let sharedAudio = document.createElement('audio');
   sharedAudio.preload = 'auto';
   sharedAudio.setAttribute('playsinline', '');
+  sharedAudio.hidden = true;
+  document.body.appendChild(sharedAudio);
+
+  // Silent looping keep-alive track so iOS Safari never suspends background audio between chunks on lock screen
+  let keepAliveAudio = document.createElement('audio');
+  keepAliveAudio.preload = 'auto';
+  keepAliveAudio.loop = true;
+  keepAliveAudio.volume = 0.01;
+  keepAliveAudio.setAttribute('playsinline', '');
+  keepAliveAudio.hidden = true;
+  document.body.appendChild(keepAliveAudio);
+
   let audioCtx = null;
   let activeWebAudioSource = null;
   let activeAudio = null;
   let activeAudioUrl = null;
   let activeAbort = null;
+  const PREFETCH_AHEAD = 2;
+  const prefetchGate = Core.createPrefetchGate({
+    requiredConsecutive: 3,
+    windowMs: 10 * 60 * 1000
+  });
   let prefetchAbort = null;
+  let prefetchChain = Promise.resolve();
   let prefetchMap = new Map(); // prefetchKey -> Promise<{ blob, source, engine } | null>
 
   function makePrefetchKey(text) {
@@ -324,13 +342,16 @@
     activeAudio = sharedAudio;
     activeAudio.muted = false;
     activeAudio.src = activeAudioUrl;
-    activeAudio.load();
     try {
       await new Promise((resolve, reject) => {
         activeAudio.onended = resolve;
         activeAudio.onerror = () => reject(new Error('AUDIO_ELEMENT_ERROR'));
         const p = activeAudio.play();
-        if (p && typeof p.catch === 'function') p.catch(reject);
+        if (p && typeof p.then === 'function') {
+          p.then(() => updateMediaSession(true)).catch(reject);
+        } else {
+          updateMediaSession(true);
+        }
       });
       return;
     } catch (err) {
@@ -364,17 +385,21 @@
       navigator.mediaSession.setActionHandler('nexttrack', () => {
         if (!playback.chunks.length) return;
         playback.chunkIndex = Math.min(playback.chunks.length - 1, playback.chunkIndex + 1);
+        prefetchGate.reset();
         stopAudioHardware();
         playback.isPlaying = true;
         playback.isPaused = false;
+        startKeepAlive();
         playCurrentChunk();
       });
       navigator.mediaSession.setActionHandler('previoustrack', () => {
         if (!playback.chunks.length) return;
         playback.chunkIndex = Math.max(0, playback.chunkIndex - 1);
+        prefetchGate.reset();
         stopAudioHardware();
         playback.isPlaying = true;
         playback.isPaused = false;
+        startKeepAlive();
         playCurrentChunk();
       });
     } catch {}
@@ -481,12 +506,18 @@
     }
 
     const servedEngine = response.headers.get('x-tts-engine') === 'gemini-tts' ? 'gemini-tts' : 'chirp3';
+    const cacheHeader = (response.headers.get('x-cache') || '').toUpperCase();
+    const fromCloudCache = cacheHeader.startsWith('HIT');
     if (servedEngine === 'chirp3') {
-      persistQuota(tracker.recordChirpSpend(text.length));
+      if (fromCloudCache) {
+        persistQuota(tracker.recordChirpCacheHit(text.length));
+      } else {
+        persistQuota(tracker.recordChirpSpend(text.length));
+      }
       renderQuotaUI();
     }
     await cachePutAudio(cacheKey, blob);
-    return { blob, source: 'network', engine: servedEngine };
+    return { blob, source: fromCloudCache ? 'cloud-cache' : 'network', engine: servedEngine };
   }
 
   async function synthesizeGeminiTts(text, signal) {
@@ -550,8 +581,14 @@
       blob = base64ToAudioBlob(inline.data, inline.mimeType || 'audio/wav');
     }
 
+    const cacheHeader = (response.headers.get('x-cache') || '').toUpperCase();
+    const fromCloudCache = cacheHeader.startsWith('HIT');
+    if (fromCloudCache) {
+      persistQuota(tracker.recordChirpCacheHit(text.length));
+      renderQuotaUI();
+    }
     await cachePutAudio(cacheKey, blob);
-    return { blob, source: 'network', engine: 'gemini-tts' };
+    return { blob, source: fromCloudCache ? 'cloud-cache' : 'network', engine: 'gemini-tts' };
   }
 
   async function synthesizeSelectedEngine(text, signal) {
@@ -594,7 +631,9 @@
       URL.revokeObjectURL(activeAudioUrl);
       activeAudioUrl = null;
     }
+    stopKeepAlive();
     prefetchMap.clear();
+    prefetchChain = Promise.resolve();
   }
 
   function stopReading(resetPosition = false) {
@@ -603,6 +642,7 @@
     if (resetPosition) {
       playback.chunks = [];
       playback.chunkIndex = 0;
+      prefetchGate.reset();
     }
     stopAudioHardware();
     updateReadUI();
@@ -612,6 +652,7 @@
     if (!playback.isPlaying) return;
     playback.isPlaying = false;
     playback.isPaused = true;
+    stopKeepAlive();
     if (activeAudio && !activeAudio.paused) {
       activeAudio.pause();
     }
@@ -622,6 +663,7 @@
     if (!playback.isPaused) return;
     playback.isPlaying = true;
     playback.isPaused = false;
+    startKeepAlive();
     if (activeAudio && activeAudio.paused && activeAudio.src) {
       activeAudio.play().catch(() => playCurrentChunk());
       updateReadUI();
@@ -630,20 +672,49 @@
     playCurrentChunk();
   }
 
-  function prefetchNextChunk() {
+  function prefetchUpcomingChunks(aheadCount = PREFETCH_AHEAD) {
     if (!playback.isPlaying) return;
-    // Avoid tripping Gemini TTS free-tier RPM/RPD limits with speculative prefetching
-    if (playback.activeEngine === 'gemini-tts' || settings.ttsEngine === 'gemini-tts') return;
-    const nextIdx = playback.chunkIndex + 1;
-    if (nextIdx >= playback.chunks.length) return;
-    const nextText = playback.chunks[nextIdx].text;
-    const key = makePrefetchKey(nextText);
-    if (prefetchMap.has(key)) return;
     if (!settings.proxyUrl && !settings.googleTtsApiKey && !settings.geminiApiKey) return;
-    if (prefetchAbort) prefetchAbort.abort();
-    prefetchAbort = new AbortController();
-    const p = synthesizeSelectedEngine(nextText, prefetchAbort.signal).catch(() => null);
-    prefetchMap.set(key, p);
+
+    ensureLookaheadChunks(aheadCount);
+
+    // Prune stale prefetch entries outside the active lookahead window
+    const keepKeys = new Set();
+    for (let offset = 0; offset <= aheadCount; offset++) {
+      const idx = playback.chunkIndex + offset;
+      if (idx < playback.chunks.length) keepKeys.add(makePrefetchKey(playback.chunks[idx].text));
+    }
+    for (const k of prefetchMap.keys()) {
+      if (!keepKeys.has(k)) prefetchMap.delete(k);
+    }
+
+    if (!prefetchAbort || prefetchAbort.signal.aborted) {
+      prefetchAbort = new AbortController();
+    }
+    const signal = prefetchAbort.signal;
+
+    for (let offset = 1; offset <= aheadCount; offset++) {
+      const nextIdx = playback.chunkIndex + offset;
+      if (nextIdx >= playback.chunks.length) break;
+      const nextText = playback.chunks[nextIdx].text;
+      const key = makePrefetchKey(nextText);
+      if (prefetchMap.has(key)) continue;
+
+      const task = prefetchChain.then(async () => {
+        if (signal.aborted || !playback.isPlaying) return null;
+        try {
+          const res = await synthesizeSelectedEngine(nextText, signal);
+          if (res && res.source === 'network' && res.engine === 'gemini-tts' && !signal.aborted) {
+            await new Promise(r => setTimeout(r, 1200));
+          }
+          return res;
+        } catch {
+          return null;
+        }
+      });
+      prefetchChain = task.then(() => {}, () => {});
+      prefetchMap.set(key, task);
+    }
   }
 
   async function playCurrentChunk() {
@@ -673,15 +744,21 @@
 
       playback.activeEngine = result.engine;
       const engineName = result.engine === 'gemini-tts' ? 'Gemini 3.8 Flash-Lite TTS' : 'Chirp 3 HD';
-      setReadStatus(result.source === 'cache'
-        ? `يقرأ الآن: ${engineName} (من الذاكرة المؤقتة — 0 استهلاك)`
-        : `يقرأ الآن: ${engineName}`);
+      const sourceLabel = result.source === 'cache'
+        ? ' (من الذاكرة المحلية — 0 استهلاك)'
+        : result.source === 'cloud-cache'
+          ? ' (من التخزين السحابي — 0 استهلاك)'
+          : '';
+      setReadStatus(`يقرأ الآن: ${engineName}${sourceLabel}`);
 
-      // Immediately prefetch next chunk while current chunk is playing for seamless transitions
-      prefetchNextChunk();
+      // Keep 2 upcoming clips prepared in cloud storage & local cache only after 3 consecutive clips within 10 min
+      if (prefetchGate.isUnlocked()) {
+        prefetchUpcomingChunks(PREFETCH_AHEAD);
+      }
       refreshRemoteStatus();
       await playBlobReliably(result.blob);
       if (!playback.isPlaying) return;
+      prefetchGate.recordCompletedClip();
       playback.chunkIndex += 1;
       playCurrentChunk();
     } catch (err) {
@@ -691,12 +768,10 @@
     }
   }
 
-  function loadLogicalChunksFrom(startBlockIdx) {
+  function buildChunksBatch(startBlockIdx) {
     const allBlocks = [...article.querySelectorAll('p,h1,h2,h3,h4,li')];
     if (!allBlocks.length || startBlockIdx >= allBlocks.length) {
-      playback.chunks = [];
-      playback.chunkIndex = 0;
-      return false;
+      return { chunks: [], lastBlockIndex: startBlockIdx - 1 };
     }
     const batch = [];
     let endIdx = startBlockIdx;
@@ -714,11 +789,27 @@
       persistQuota(tracker.recordCleanSavings(totalSavedByClean));
       renderQuotaUI();
     }
+    return { chunks, lastBlockIndex: endIdx };
+  }
+
+  function loadLogicalChunksFrom(startBlockIdx) {
+    const { chunks, lastBlockIndex } = buildChunksBatch(startBlockIdx);
     playback.chunks = chunks;
     playback.chunkIndex = 0;
-    playback.lastBlockIndex = endIdx;
+    playback.lastBlockIndex = lastBlockIndex;
     playback.pageNumber = app.state.currentPage;
     return chunks.length > 0;
+  }
+
+  function ensureLookaheadChunks(aheadCount = PREFETCH_AHEAD) {
+    if (!settings.autoTurnPage) return;
+    while (playback.chunks.length - 1 - playback.chunkIndex < aheadCount) {
+      const nextStart = playback.lastBlockIndex + 1;
+      const { chunks: moreChunks, lastBlockIndex } = buildChunksBatch(nextStart);
+      if (!moreChunks.length) break;
+      playback.chunks.push(...moreChunks);
+      playback.lastBlockIndex = lastBlockIndex;
+    }
   }
 
   function loadCurrentPageChunks() {
@@ -758,6 +849,7 @@
       return;
     }
     stopAudioHardware();
+    prefetchGate.reset();
     loadCurrentPageChunks();
     if (!playback.chunks.length) {
       setReadStatus('لا يوجد نص مقروء في هذه الصفحة.');
@@ -765,6 +857,7 @@
     }
     playback.isPlaying = true;
     playback.isPaused = false;
+    startKeepAlive();
     playCurrentChunk();
   }
 
@@ -880,26 +973,52 @@
     }
   }
 
-  // Unlock HTMLAudioElement with a valid tiny silent WAV on user gesture so iOS allows background playback
+  // Unlock HTMLAudioElement with valid silent WAVs on user gesture so iOS keeps background playback alive
   let silentPrimeUrl = null;
-  function getSilentWavUrl() {
-    if (silentPrimeUrl) return silentPrimeUrl;
-    const sampleCount = 1200; // 0.05s at 24kHz
+  let keepAliveSilentUrl = null;
+  function buildSilentWavUrl(sampleRate, durationSec) {
+    const sampleCount = Math.max(1, Math.floor(sampleRate * durationSec));
     const dataLen = sampleCount * 2;
     const buf = new ArrayBuffer(44 + dataLen);
     const v = new DataView(buf);
     const w = (off, s) => { for (let i = 0; i < s.length; i++) v.setUint8(off + i, s.charCodeAt(i)); };
     w(0, 'RIFF'); v.setUint32(4, 36 + dataLen, true); w(8, 'WAVE');
     w(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
-    v.setUint32(24, 24000, true); v.setUint32(28, 48000, true);
+    v.setUint32(24, sampleRate, true); v.setUint32(28, sampleRate * 2, true);
     v.setUint16(32, 2, true); v.setUint16(34, 16, true);
     w(36, 'data'); v.setUint32(40, dataLen, true);
-    silentPrimeUrl = URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }));
+    return URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }));
+  }
+
+  function getSilentWavUrl() {
+    if (!silentPrimeUrl) silentPrimeUrl = buildSilentWavUrl(24000, 0.05);
     return silentPrimeUrl;
+  }
+
+  function getKeepAliveSilentWavUrl() {
+    if (!keepAliveSilentUrl) keepAliveSilentUrl = buildSilentWavUrl(8000, 1.0);
+    return keepAliveSilentUrl;
+  }
+
+  function startKeepAlive() {
+    try {
+      if (!keepAliveAudio.src) keepAliveAudio.src = getKeepAliveSilentWavUrl();
+      if (keepAliveAudio.paused) {
+        const p = keepAliveAudio.play();
+        if (p && typeof p.catch === 'function') p.catch(() => {});
+      }
+    } catch {}
+  }
+
+  function stopKeepAlive() {
+    try {
+      if (!keepAliveAudio.paused) keepAliveAudio.pause();
+    } catch {}
   }
 
   function primeAudioForMobile() {
     try {
+      startKeepAlive();
       if (sharedAudio.paused && !sharedAudio.currentTime) {
         sharedAudio.src = getSilentWavUrl();
         const p = sharedAudio.play();
@@ -1272,17 +1391,21 @@
   dock.querySelector('#vai-prev-chunk').addEventListener('click', () => {
     if (!playback.chunks.length) loadCurrentPageChunks();
     playback.chunkIndex = Math.max(0, playback.chunkIndex - 1);
+    prefetchGate.reset();
     stopAudioHardware();
     playback.isPlaying = true;
     playback.isPaused = false;
+    startKeepAlive();
     playCurrentChunk();
   });
   dock.querySelector('#vai-next-chunk').addEventListener('click', () => {
     if (!playback.chunks.length) loadCurrentPageChunks();
     playback.chunkIndex = Math.min(playback.chunks.length - 1, playback.chunkIndex + 1);
+    prefetchGate.reset();
     stopAudioHardware();
     playback.isPlaying = true;
     playback.isPaused = false;
+    startKeepAlive();
     playCurrentChunk();
   });
   dock.querySelector('#vai-switch-to-discuss').addEventListener('click', () => switchTab('discuss'));
@@ -1344,6 +1467,7 @@
     if (playback.isPaused && playback.pageNumber !== app.state.currentPage) {
       playback.chunks = [];
       playback.chunkIndex = 0;
+      prefetchGate.reset();
     }
   });
 

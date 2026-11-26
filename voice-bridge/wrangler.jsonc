@@ -8,7 +8,7 @@
     "CHIRP_MONTHLY_CAP": "900000",
     "CHIRP_DAILY_CAP": "30000",
     "GEMINI_DAILY_CAP": "20",
-    "GEMINI_TTS_DAILY_CAP": "15"
+    "GEMINI_TTS_DAILY_CAP": "30"
   },
   "kv_namespaces": [
     {
