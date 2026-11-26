@@ -183,12 +183,11 @@
         const range = document.createRange();
         range.selectNodeContents(el);
         const rects = [...range.getClientRects()];
-        const inView = rects.some(r =>
-          r.right > viewport.left + 4 &&
-          r.left < viewport.right - 4 &&
-          r.bottom > viewport.top + 4 &&
-          r.top < viewport.bottom
-        );
+        const inView = rects.some(r => {
+          const overlapX = Math.min(r.right, viewport.right - 6) - Math.max(r.left, viewport.left + 6);
+          const overlapY = Math.min(r.bottom, viewport.bottom - 4) - Math.max(r.top, viewport.top + 4);
+          return overlapX > 12 && overlapY > 4;
+        });
         if (!inView) return;
       }
       visible.push({ blockIndex: idx, text });
@@ -719,8 +718,8 @@
   dock.innerHTML = `
     <header class="vai-header">
       <div class="vai-tabs" role="tablist">
-        <button type="button" class="vai-tab is-active" data-vai-tab="read" role="tab" aria-selected="true">🎧 قراءة (Chirp 3)</button>
-        <button type="button" class="vai-tab" data-vai-tab="discuss" role="tab" aria-selected="false">💬 مناقشة (Gemini)</button>
+        <button type="button" class="vai-tab is-active" data-vai-tab="read" role="tab" aria-selected="true">🎧 قراءة</button>
+        <button type="button" class="vai-tab" data-vai-tab="discuss" role="tab" aria-selected="false">💬 مناقشة</button>
         <button type="button" class="vai-tab" data-vai-tab="settings" role="tab" aria-selected="false">⚙️ الإعدادات</button>
       </div>
       <div class="vai-header-actions">

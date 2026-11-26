@@ -86,6 +86,9 @@ async function sha256Hex(str) {
 
 export async function handleTts(request, env, cors) {
   if (!env.GOOGLE_TTS_API_KEY) {
+    if (env.GEMINI_API_KEY) {
+      return handleGeminiTts(request, env, cors);
+    }
     return jsonResp({ error: 'GOOGLE_TTS_API_KEY secret is not configured.' }, 503, cors);
   }
   let body;
