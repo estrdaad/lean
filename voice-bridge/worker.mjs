@@ -22,8 +22,9 @@ const ALLOWED_VOICES = new Set([
   'ar-XA-Chirp3-HD-Leda'
 ]);
 const ALLOWED_MODELS = new Set([
-  'gemini-3.8-flash',
-  'gemini-flash-lite-latest'
+  'gemini-flash-lite-latest',
+  'gemini-3.5-flash-lite',
+  'gemini-3.8-flash'
 ]);
 
 const memQuota = new Map();
@@ -176,7 +177,6 @@ export async function handleDiscuss(request, env, cors) {
   let body;
   try { body = await request.json(); } catch { return jsonResp({ error: 'Invalid JSON.' }, 400, cors); }
 
-  const model = ALLOWED_MODELS.has(body.model) ? body.model : 'gemini-3.8-flash';
   const payload = body.payload;
   if (!payload || !Array.isArray(payload.contents) || !payload.contents.length) {
     return jsonResp({ error: 'Invalid discussion payload.' }, 400, cors);
@@ -199,17 +199,27 @@ export async function handleDiscuss(request, env, cors) {
     }
   };
 
-  const upstream = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(env.GEMINI_API_KEY)}`,
-    {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(safePayload)
-    }
-  );
-  const text = await upstream.text();
-  if (!upstream.ok) {
-    return jsonResp({ error: 'Upstream Gemini error', status: upstream.status }, upstream.status, cors);
+  const primaryModel = ALLOWED_MODELS.has(body.model) ? body.model : 'gemini-flash-lite-latest';
+  const fallbackChain = [primaryModel, 'gemini-flash-lite-latest', 'gemini-3.5-flash-lite', 'gemini-3.8-flash']
+    .filter((m, idx, arr) => arr.indexOf(m) === idx);
+
+  let upstream = null;
+  let text = '';
+  for (const candidateModel of fallbackChain) {
+    upstream = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(candidateModel)}:generateContent?key=${encodeURIComponent(env.GEMINI_API_KEY)}`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(safePayload)
+      }
+    );
+    text = await upstream.text();
+    if (upstream.ok) break;
+    if (![404, 429, 500, 503].includes(upstream.status)) break;
+  }
+  if (!upstream || !upstream.ok) {
+    return jsonResp({ error: 'Upstream Gemini error', status: upstream?.status || 502 }, upstream?.status || 502, cors);
   }
 
   await addCounter(env, dayKey, 1, 2 * 86400);

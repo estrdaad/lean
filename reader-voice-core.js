@@ -33,8 +33,8 @@
   ]);
 
   const GEMINI_MODELS = Object.freeze([
-    { id: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash (مجاني — سريع وموفّر)' },
-    { id: 'gemini-flash-lite-latest', label: 'Gemini Flash-Lite (مجاني — أقل استهلاكًا)' }
+    { id: 'gemini-flash-lite-latest', label: 'Gemini Flash-Lite (مجاني — الأسرع والأكثر استقرارًا)' },
+    { id: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash (مجاني — متقدم)' }
   ]);
 
   function utcMonthKey(now = Date.now()) {
