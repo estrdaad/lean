@@ -274,27 +274,28 @@
 
   async function playBlobReliably(rawBlob) {
     const { blob, buffer } = await normalizeAudioBlob(rawBlob);
+    // Prefer Web Audio API when AudioContext is available (rock-solid on iOS Safari after async fetches)
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (Ctx) {
+      try {
+        await playBufferWithWebAudio(buffer);
+        return;
+      } catch (webAudioErr) {
+        if (webAudioErr?.name === 'AbortError') throw webAudioErr;
+      }
+    }
     if (activeAudioUrl) URL.revokeObjectURL(activeAudioUrl);
     activeAudioUrl = URL.createObjectURL(blob);
     activeAudio = sharedAudio;
     activeAudio.muted = false;
     activeAudio.src = activeAudioUrl;
     activeAudio.load();
-    try {
-      await new Promise((resolve, reject) => {
-        activeAudio.onended = resolve;
-        activeAudio.onerror = () => reject(new Error('AUDIO_ELEMENT_ERROR'));
-        const p = activeAudio.play();
-        if (p && typeof p.catch === 'function') p.catch(reject);
-      });
-    } catch (err) {
-      if (err?.name === 'AbortError') throw err;
-      // Fallback to Web Audio API (fixes iOS Safari NotSupportedError on cached/WAV blobs)
-      activeAudio.onended = null;
-      activeAudio.onerror = null;
-      activeAudio.pause();
-      await playBufferWithWebAudio(buffer);
-    }
+    await new Promise((resolve, reject) => {
+      activeAudio.onended = resolve;
+      activeAudio.onerror = () => reject(new Error('تعذّر تشغيل المقطع الصوتي.'));
+      const p = activeAudio.play();
+      if (p && typeof p.catch === 'function') p.catch(reject);
+    });
   }
 
   function base64ToAudioBlob(base64, mime = 'audio/mpeg') {
