@@ -15,7 +15,8 @@
   const article = document.getElementById('book-article');
   const columnWindow = document.getElementById('reader-column-window');
 
-  const STORAGE_SETTINGS = 'goog-reader-voice-settings-v1';
+  const STORAGE_SETTINGS = 'goog-reader-voice-settings-v2';
+  const STORAGE_SETTINGS_V1 = 'goog-reader-voice-settings-v1';
   const STORAGE_QUOTA = 'goog-reader-voice-quota-v1';
   const DB_NAME = 'goog-reader-tts-cache-v1';
   const DB_STORE = 'audio_clips';
@@ -35,12 +36,25 @@
       chirpDailyCap: Core.LIMITS.CHIRP3_SAFE_DAILY_CAP,
       geminiDailyCap: Core.LIMITS.GEMINI_SAFE_DAILY_REQUESTS,
       autoTurnPage: true,
-      conciseDiscussion: true,
-      speakDiscussionReplies: false       // Off by default to save Chirp 3 HD quota
+      conciseDiscussion: false,           // Expanded in-depth discussion replies by default
+      speakDiscussionReplies: true        // Automatically synthesize & speak discussion replies
     };
     try {
-      const saved = JSON.parse(localStorage.getItem(STORAGE_SETTINGS) || '{}');
-      return { ...defaults, ...saved };
+      const saved = JSON.parse(localStorage.getItem(STORAGE_SETTINGS) || 'null');
+      if (saved) return { ...defaults, ...saved };
+      // Migrate credentials/voice from v1 while adopting new v2 discussion & auto-speak defaults
+      const v1 = JSON.parse(localStorage.getItem(STORAGE_SETTINGS_V1) || 'null');
+      if (v1) {
+        return {
+          ...defaults,
+          proxyUrl: v1.proxyUrl || defaults.proxyUrl,
+          googleTtsApiKey: v1.googleTtsApiKey || '',
+          geminiApiKey: v1.geminiApiKey || '',
+          chirpVoice: v1.chirpVoice || defaults.chirpVoice,
+          speakingRate: v1.speakingRate || defaults.speakingRate
+        };
+      }
+      return defaults;
     } catch {
       return defaults;
     }
@@ -566,10 +580,11 @@
   async function askGemini(questionText) {
     const q = String(questionText || '').trim();
     if (!q || discussion.busy) return;
+    if (settings.speakDiscussionReplies) primeAudioForMobile();
 
     const book = window.BookLibrary.activeBook;
     const excerpt = getCurrentExcerptForDiscussion();
-    const cacheKey = Core.hashKey(`${book.id}|${settings.geminiModel}|${excerpt.slice(0, 300)}|${q}`);
+    const cacheKey = Core.hashKey(`${book.id}|${settings.geminiModel}|${settings.conciseDiscussion ? 'c' : 'e'}|${excerpt.slice(0, 300)}|${q}`);
 
     appendChatMessage('user', q);
 
@@ -578,6 +593,7 @@
       renderQuotaUI();
       const cachedReply = discussion.cache.get(cacheKey);
       appendChatMessage('model', cachedReply, true);
+      if (settings.speakDiscussionReplies) speakReplyText(cachedReply);
       return;
     }
 
@@ -666,19 +682,75 @@
     }
   }
 
+  // Unlock sharedAudio on mobile Safari during user gesture before async fetch
+  function primeAudioForMobile() {
+    try {
+      if (sharedAudio.paused && !sharedAudio.src) {
+        sharedAudio.muted = true;
+        sharedAudio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
+        const p = sharedAudio.play();
+        if (p && typeof p.then === 'function') {
+          p.then(() => { sharedAudio.pause(); sharedAudio.muted = false; }).catch(() => { sharedAudio.muted = false; });
+        }
+      }
+    } catch {}
+  }
+
+  let replyPlaybackActive = false;
+
   async function speakReplyText(text) {
     stopAudioHardware();
-    const clean = Core.cleanTextForTTS(text).text.slice(0, Core.LIMITS.CHUNK_MAX_CHARS);
-    if (!clean) return;
+    playback.isPlaying = false;
+    playback.isPaused = false;
+    updateReadUI();
+
+    const cleanFull = Core.cleanTextForTTS(String(text || '').replace(/[*#`_~]/g, ' ')).text;
+    if (!cleanFull) return;
+    const { chunks } = Core.chunkParagraphs([{ blockIndex: 0, text: cleanFull }]);
+    if (!chunks.length) return;
+
+    replyPlaybackActive = true;
+    updateDiscussAudioBtn();
+
+    let nextPrefetch = null;
     try {
-      const res = await synthesizeSelectedEngine(clean);
-      activeAudioUrl = URL.createObjectURL(res.blob);
-      activeAudio = sharedAudio;
-      activeAudio.src = activeAudioUrl;
-      await activeAudio.play();
+      for (let i = 0; i < chunks.length; i++) {
+        if (!replyPlaybackActive) break;
+        const piece = chunks[i].text;
+        activeAbort = new AbortController();
+        const res = (nextPrefetch && (await nextPrefetch)) || (await synthesizeSelectedEngine(piece, activeAbort.signal));
+        nextPrefetch = null;
+        if (!replyPlaybackActive) break;
+
+        // Prefetch next chunk of the reply while playing current one
+        if (i + 1 < chunks.length) {
+          prefetchAbort = new AbortController();
+          nextPrefetch = synthesizeSelectedEngine(chunks[i + 1].text, prefetchAbort.signal).catch(() => null);
+        }
+
+        if (activeAudioUrl) URL.revokeObjectURL(activeAudioUrl);
+        activeAudioUrl = URL.createObjectURL(res.blob);
+        activeAudio = sharedAudio;
+        activeAudio.muted = false;
+        activeAudio.src = activeAudioUrl;
+        await new Promise((resolve, reject) => {
+          activeAudio.onended = resolve;
+          activeAudio.onerror = () => reject(new Error('تعذّر تشغيل صوت الرد.'));
+          activeAudio.play().catch(reject);
+        });
+      }
     } catch (err) {
-      setReadStatus(err.message);
+      if (err?.name !== 'AbortError') setReadStatus(err.message || 'تعذّر تشغيل صوت الرد.');
+    } finally {
+      replyPlaybackActive = false;
+      updateDiscussAudioBtn();
     }
+  }
+
+  function stopReplyAudio() {
+    replyPlaybackActive = false;
+    stopAudioHardware();
+    updateDiscussAudioBtn();
   }
 
   // --- Build Floating Dual-Mode Dock UI ---
@@ -699,25 +771,27 @@
       </div>
     </header>
     <div class="vai-body">
-      <!-- TAB 1: READING (Chirp 3 HD) -->
+      <!-- TAB 1: READING (Chirp 3 HD / Gemini TTS) -->
       <div class="vai-panel" data-vai-panel="read">
-        <div class="vai-controls-row">
-          <div class="vai-transport">
-            <button type="button" class="vai-play-btn" id="vai-play-btn">▶ استماع للصفحة</button>
-            <button type="button" class="vai-secondary-btn" id="vai-prev-chunk" title="المقطع السابق">السابق</button>
-            <button type="button" class="vai-secondary-btn" id="vai-next-chunk" title="المقطع التالي">التالي</button>
-            <button type="button" class="vai-secondary-btn" id="vai-stop-btn" title="إيقاف">■</button>
+        <div class="vai-player-card">
+          <div class="vai-controls-row">
+            <div class="vai-transport">
+              <button type="button" class="vai-play-btn" id="vai-play-btn">▶ استماع للصفحة</button>
+              <button type="button" class="vai-circle-btn" id="vai-prev-chunk" title="المقطع السابق" aria-label="المقطع السابق">⏮</button>
+              <button type="button" class="vai-circle-btn" id="vai-next-chunk" title="المقطع التالي" aria-label="المقطع التالي">⏭</button>
+              <button type="button" class="vai-circle-btn" id="vai-stop-btn" title="إيقاف" aria-label="إيقاف">■</button>
+            </div>
+            <button type="button" class="vai-switch-pill" id="vai-switch-to-discuss">💬 ناقش الصفحة</button>
           </div>
-          <button type="button" class="vai-secondary-btn" id="vai-switch-to-discuss">انتقل للمناقشة ←</button>
+          <div class="vai-status-line">
+            <span class="vai-status-indicator"><span class="vai-live-dot" id="vai-live-dot"></span><span id="vai-read-status">جاهز للقراءة الصوتية.</span></span>
+            <span class="vai-chunk-badge" id="vai-chunk-counter"></span>
+          </div>
+          <div class="vai-chunk-preview" id="vai-chunk-preview">اضغط «استماع للصفحة» لبدء السرد الصوتي المتصل من موضعك الحالي.</div>
         </div>
-        <div class="vai-status-line">
-          <span id="vai-read-status">جاهز للقراءة عبر Google Chirp 3 HD.</span>
-          <span id="vai-chunk-counter"></span>
-        </div>
-        <div class="vai-chunk-preview" id="vai-chunk-preview">اضغط «استماع للصفحة» لبدء القراءة الصوتية من موضعك الحالي.</div>
         <div class="vai-quota-bar-wrap">
           <div class="vai-quota-row">
-            <span id="vai-chirp-quota-text">Chirp 3 HD الشهري: 0 / 900,000 حرف</span>
+            <span id="vai-chirp-quota-text">الرصيد المجاني: 0 / 900,000 حرف</span>
             <span id="vai-cache-saved-text">توفير الكاش: 0 حرف</span>
           </div>
           <div class="vai-progress"><div class="vai-progress-fill" id="vai-chirp-bar"></div></div>
@@ -728,7 +802,10 @@
       <div class="vai-panel" data-vai-panel="discuss" hidden>
         <div class="vai-controls-row" style="margin-bottom:8px;">
           <span class="vai-hint" id="vai-discuss-quota-text">Gemini المجاني اليوم: 0 / 20 طلب</span>
-          <button type="button" class="vai-secondary-btn" id="vai-switch-to-read">← العودة للقراءة الصوتية</button>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <button type="button" class="vai-secondary-btn" id="vai-stop-reply-audio" hidden>⏹ إيقاف الصوت</button>
+            <button type="button" class="vai-switch-pill" id="vai-switch-to-read">🎧 العودة للقراءة</button>
+          </div>
         </div>
         <div class="vai-quick-prompts">
           <button type="button" class="vai-chip" data-vai-prompt="لخّص هذه الصفحة في 3 نقاط سريعة.">لخّص الصفحة</button>
@@ -805,6 +882,12 @@
   const elChatLog = dock.querySelector('#vai-chat-log');
   const elChatInput = dock.querySelector('#vai-chat-input');
   const elChatSend = dock.querySelector('#vai-chat-send');
+  const elLiveDot = dock.querySelector('#vai-live-dot');
+  const elStopReplyBtn = dock.querySelector('#vai-stop-reply-audio');
+
+  function updateDiscussAudioBtn() {
+    if (elStopReplyBtn) elStopReplyBtn.hidden = !replyPlaybackActive;
+  }
 
   function setReadStatus(msg) {
     elReadStatus.textContent = msg;
@@ -812,6 +895,7 @@
 
   function updateReadUI() {
     elPlayBtn.textContent = playback.isPlaying ? '⏸ إيقاف مؤقت' : (playback.isPaused ? '▶ متابعة القراءة' : '▶ استماع للصفحة');
+    if (elLiveDot) elLiveDot.classList.toggle('is-playing', playback.isPlaying);
     if (playback.chunks.length) {
       const idx = Math.min(playback.chunkIndex, playback.chunks.length - 1);
       elChunkCounter.textContent = `مقطع ${idx + 1} / ${playback.chunks.length}`;
@@ -920,7 +1004,11 @@
     playCurrentChunk();
   });
   dock.querySelector('#vai-switch-to-discuss').addEventListener('click', () => switchTab('discuss'));
-  dock.querySelector('#vai-switch-to-read').addEventListener('click', () => switchTab('read'));
+  dock.querySelector('#vai-switch-to-read').addEventListener('click', () => {
+    stopReplyAudio();
+    switchTab('read');
+  });
+  if (elStopReplyBtn) elStopReplyBtn.addEventListener('click', stopReplyAudio);
 
   dock.querySelectorAll('.vai-chip').forEach(chip => {
     chip.addEventListener('click', () => askGemini(chip.dataset.vaiPrompt));

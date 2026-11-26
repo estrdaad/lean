@@ -193,12 +193,12 @@ export async function handleDiscuss(request, env, cors) {
     return jsonResp({ error: 'Daily free-tier Gemini discussion cap reached.' }, 429, cors);
   }
 
-  // Enforce concise output cap server-side too
+  // Enforce safe output cap server-side while allowing rich expanded discussions
   const safePayload = {
     ...payload,
     generationConfig: {
       ...(payload.generationConfig || {}),
-      maxOutputTokens: Math.min(520, Number(payload.generationConfig?.maxOutputTokens) || 320)
+      maxOutputTokens: Math.min(1400, Number(payload.generationConfig?.maxOutputTokens) || 1200)
     }
   };
 

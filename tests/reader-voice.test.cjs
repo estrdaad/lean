@@ -117,6 +117,13 @@ test('buildGeminiPayload caps excerpt length, history turns, and output tokens',
   assert.equal(payload.contents.length, Core.LIMITS.GEMINI_MAX_HISTORY_TURNS + 1);
   const lastText = payload.contents[payload.contents.length - 1].parts[0].text;
   assert.ok(lastText.length < 1000);
+
+  const expanded = Core.buildGeminiPayload({
+    bookTitle: 'الشركة الناشئة المرنة',
+    question: 'اشرح بالتفصيل',
+    concise: false
+  });
+  assert.equal(expanded.generationConfig.maxOutputTokens, Core.LIMITS.GEMINI_EXPANDED_OUTPUT_TOKENS);
 });
 
 test('voice-bridge worker rejects over-limit text and enforces missing secret safety', async () => {
