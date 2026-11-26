@@ -35,6 +35,7 @@
       chirpMonthlyCap: Core.LIMITS.CHIRP3_SAFE_MONTHLY_CAP,
       chirpDailyCap: Core.LIMITS.CHIRP3_SAFE_DAILY_CAP,
       geminiDailyCap: Core.LIMITS.GEMINI_SAFE_DAILY_REQUESTS,
+      bypassDailyCap: false,              // Allows exceeding daily cap while preserving monthly $0 cap
       autoTurnPage: true,
       conciseDiscussion: false,           // Expanded in-depth discussion replies by default
       speakDiscussionReplies: true        // Automatically synthesize & speak discussion replies
@@ -229,6 +230,9 @@
   // --- Audio Synthesis Backends (Chirp 3 HD + Free Browser Fallback) ---
   let sharedAudio = new Audio();
   sharedAudio.preload = 'auto';
+  sharedAudio.setAttribute('playsinline', '');
+  let audioCtx = null;
+  let activeWebAudioSource = null;
   let activeAudio = null;
   let activeAudioUrl = null;
   let activeAbort = null;
@@ -239,6 +243,60 @@
     return Core.makeAudioCacheKey(settings.ttsEngine || 'auto', settings.chirpVoice, settings.speakingRate, text);
   }
 
+  async function normalizeAudioBlob(blob) {
+    const buf = await blob.arrayBuffer();
+    const bytes = new Uint8Array(buf);
+    const isRiff = bytes.length >= 4 && bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46;
+    const isMp3 = bytes.length >= 3 && ((bytes[0] === 0x49 && bytes[1] === 0x44 && bytes[2] === 0x33) || (bytes[0] === 0xff && (bytes[1] & 0xe0) === 0xe0));
+    const type = isRiff ? 'audio/wav' : (isMp3 ? 'audio/mpeg' : (blob.type || 'audio/wav'));
+    return { blob: new Blob([bytes], { type }), buffer: buf };
+  }
+
+  function playBufferWithWebAudio(arrayBuffer) {
+    return new Promise((resolve, reject) => {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return reject(new Error('المتصفح لا يدعم تشغيل هذا الملف الصوتي.'));
+      if (!audioCtx) audioCtx = new Ctx();
+      audioCtx.resume().catch(() => {});
+      audioCtx.decodeAudioData(arrayBuffer.slice(0), (decoded) => {
+        const src = audioCtx.createBufferSource();
+        src.buffer = decoded;
+        src.connect(audioCtx.destination);
+        activeWebAudioSource = src;
+        src.onended = () => {
+          if (activeWebAudioSource === src) activeWebAudioSource = null;
+          resolve();
+        };
+        src.start(0);
+      }, () => reject(new Error('تعذّر فك ترميز المقطع الصوتي.')));
+    });
+  }
+
+  async function playBlobReliably(rawBlob) {
+    const { blob, buffer } = await normalizeAudioBlob(rawBlob);
+    if (activeAudioUrl) URL.revokeObjectURL(activeAudioUrl);
+    activeAudioUrl = URL.createObjectURL(blob);
+    activeAudio = sharedAudio;
+    activeAudio.muted = false;
+    activeAudio.src = activeAudioUrl;
+    activeAudio.load();
+    try {
+      await new Promise((resolve, reject) => {
+        activeAudio.onended = resolve;
+        activeAudio.onerror = () => reject(new Error('AUDIO_ELEMENT_ERROR'));
+        const p = activeAudio.play();
+        if (p && typeof p.catch === 'function') p.catch(reject);
+      });
+    } catch (err) {
+      if (err?.name === 'AbortError') throw err;
+      // Fallback to Web Audio API (fixes iOS Safari NotSupportedError on cached/WAV blobs)
+      activeAudio.onended = null;
+      activeAudio.onerror = null;
+      activeAudio.pause();
+      await playBufferWithWebAudio(buffer);
+    }
+  }
+
   function base64ToAudioBlob(base64, mime = 'audio/mpeg') {
     const bin = atob(base64);
     const bytes = new Uint8Array(bin.length);
@@ -246,10 +304,33 @@
     return new Blob([bytes], { type: mime });
   }
 
+  function formatTtsError(defaultEngineLabel, status, errText, headerEngine) {
+    let parsed = null;
+    try { parsed = JSON.parse(errText); } catch {}
+    const isGemini = headerEngine === 'gemini-tts'
+      || parsed?.engine === 'gemini-tts'
+      || /Gemini TTS/i.test(parsed?.error || errText || '');
+    const engineLabel = isGemini ? 'Gemini TTS' : defaultEngineLabel;
+
+    let msg;
+    if (status === 429 && isGemini) {
+      msg = 'تم بلوغ حد الباقة المجانية المؤقت لـ Gemini TTS (429). انتظر دقيقة ثم أعد المحاولة، أو أضف مفتاح Google Cloud TTS (Chirp 3 HD — 900,000 حرف مجاني شهريًا) من الإعدادات.';
+    } else if (status === 429) {
+      msg = `تم بلوغ الحد المجاني الآمن لـ ${engineLabel} (429).`;
+    } else {
+      const detail = parsed?.detail || parsed?.error || errText.slice(0, 140);
+      msg = `خطأ ${engineLabel} (${status}): ${detail}`;
+    }
+    const err = new Error(msg);
+    err.code = status === 429 ? 'QUOTA_GUARD' : 'API_ERROR';
+    err.alreadyTriedGemini = isGemini;
+    return err;
+  }
+
   async function synthesizeChirp3(text, signal) {
     const voice = settings.chirpVoice || Core.CHIRP3_VOICES[0].id;
     const rate = Number(settings.speakingRate) || 1.0;
-    const cacheKey = Core.makeAudioCacheKey('chirp3-v2', voice, rate, text);
+    const cacheKey = Core.makeAudioCacheKey('chirp3-v3', voice, rate, text);
 
     const cached = await cacheGetAudio(cacheKey);
     if (cached) {
@@ -258,7 +339,7 @@
       return { blob: cached, source: 'cache', engine: 'chirp3' };
     }
 
-    const check = tracker.canSpendChirp(text.length, Date.now(), true);
+    const check = tracker.canSpendChirp(text.length, Date.now(), !settings.bypassDailyCap);
     if (!check.allowed) {
       const err = new Error(
         check.reason === 'monthly_cap'
@@ -282,7 +363,7 @@
       response = await fetch(`${proxyBase}/tts`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ text, voice, speakingRate: rate }),
+        body: JSON.stringify({ text, voice, speakingRate: rate, bypassDailyCap: Boolean(settings.bypassDailyCap) }),
         signal
       });
     } else {
@@ -303,9 +384,7 @@
 
     if (!response.ok) {
       const errText = await response.text().catch(() => '');
-      const err = new Error(`خطأ Chirp 3 HD (${response.status}): ${errText.slice(0, 140)}`);
-      err.code = response.status === 429 ? 'QUOTA_GUARD' : 'API_ERROR';
-      throw err;
+      throw formatTtsError('Chirp 3 HD', response.status, errText, response.headers.get('x-tts-engine'));
     }
 
     const contentType = response.headers.get('content-type') || '';
@@ -329,7 +408,7 @@
 
   async function synthesizeGeminiTts(text, signal) {
     const voice = (settings.chirpVoice || Core.CHIRP3_VOICES[0].id).replace(/^ar-XA-Chirp3-HD-/, '');
-    const cacheKey = Core.makeAudioCacheKey('gemini-tts-v2', voice, 1.0, text);
+    const cacheKey = Core.makeAudioCacheKey('gemini-tts-v3', voice, 1.0, text);
 
     const cached = await cacheGetAudio(cacheKey);
     if (cached) {
@@ -351,7 +430,7 @@
       response = await fetch(`${proxyBase}/tts-gemini`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ text, voice }),
+        body: JSON.stringify({ text, voice, bypassDailyCap: Boolean(settings.bypassDailyCap) }),
         signal
       });
     } else {
@@ -374,9 +453,7 @@
 
     if (!response.ok) {
       const errText = await response.text().catch(() => '');
-      const err = new Error(`خطأ Gemini TTS (${response.status}): ${errText.slice(0, 120)}`);
-      err.code = response.status === 429 ? 'QUOTA_GUARD' : 'API_ERROR';
-      throw err;
+      throw formatTtsError('Gemini TTS', response.status, errText, 'gemini-tts');
     }
 
     const contentType = response.headers.get('content-type') || '';
@@ -401,7 +478,7 @@
     try {
       return await synthesizeChirp3(text, signal);
     } catch (err) {
-      if (err.name === 'AbortError') throw err;
+      if (err.name === 'AbortError' || err.alreadyTriedGemini) throw err;
       return synthesizeGeminiTts(text, signal);
     }
   }
@@ -419,12 +496,14 @@
   function stopAudioHardware() {
     if (activeAbort) { activeAbort.abort(); activeAbort = null; }
     if (prefetchAbort) { prefetchAbort.abort(); prefetchAbort = null; }
+    if (activeWebAudioSource) {
+      try { activeWebAudioSource.onended = null; activeWebAudioSource.stop(); } catch {}
+      activeWebAudioSource = null;
+    }
     if (activeAudio) {
       activeAudio.onended = null;
       activeAudio.onerror = null;
       activeAudio.pause();
-      activeAudio.removeAttribute('src');
-      activeAudio.load();
       activeAudio = null;
     }
     if (activeAudioUrl) {
@@ -469,6 +548,8 @@
 
   function prefetchNextChunk() {
     if (!playback.isPlaying) return;
+    // Avoid tripping Gemini TTS free-tier RPM/RPD limits with speculative prefetching
+    if (playback.activeEngine === 'gemini-tts' || settings.ttsEngine === 'gemini-tts') return;
     const nextIdx = playback.chunkIndex + 1;
     if (nextIdx >= playback.chunks.length) return;
     const nextText = playback.chunks[nextIdx].text;
@@ -514,23 +595,12 @@
         ? `يقرأ الآن: ${engineName} (من الذاكرة المؤقتة — 0 استهلاك)`
         : `يقرأ الآن: ${engineName} (0$ ضمن الباقة المجانية)`);
 
-      if (activeAudioUrl) URL.revokeObjectURL(activeAudioUrl);
-      activeAudioUrl = URL.createObjectURL(result.blob);
-      activeAudio = sharedAudio;
-      activeAudio.onended = () => {
-        if (!playback.isPlaying) return;
-        playback.chunkIndex += 1;
-        playCurrentChunk();
-      };
-      activeAudio.onerror = () => {
-        if (!playback.isPlaying) return;
-        stopReading(false);
-        setReadStatus('تعذّر تشغيل المقطع الصوتي.');
-      };
-      activeAudio.src = activeAudioUrl;
-      await activeAudio.play();
       // Immediately prefetch next chunk while current chunk is playing for seamless transitions
       prefetchNextChunk();
+      await playBlobReliably(result.blob);
+      if (!playback.isPlaying) return;
+      playback.chunkIndex += 1;
+      playCurrentChunk();
     } catch (err) {
       if (err.name === 'AbortError' || !playback.isPlaying) return;
       stopReading(false);
@@ -551,6 +621,7 @@
   }
 
   function togglePlayPause() {
+    primeAudioForMobile();
     if (playback.isPlaying) {
       pauseReading();
       return;
@@ -597,7 +668,7 @@
       return;
     }
 
-    const check = tracker.canSpendGemini(Date.now());
+    const check = tracker.canSpendGemini(Date.now(), !settings.bypassDailyCap);
     if (!check.allowed) {
       if (check.reason === 'cooldown') {
         const secs = Math.ceil(check.waitMs / 1000);
@@ -635,7 +706,7 @@
         response = await fetch(`${proxyBase}/discuss`, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ model: settings.geminiModel, payload })
+          body: JSON.stringify({ model: settings.geminiModel, payload, bypassDailyCap: Boolean(settings.bypassDailyCap) })
         });
       } else {
         const model = encodeURIComponent(settings.geminiModel || Core.GEMINI_MODELS[0].id);
@@ -682,16 +753,13 @@
     }
   }
 
-  // Unlock sharedAudio on mobile Safari during user gesture before async fetch
+  // Unlock Web Audio Context on mobile Safari during user gesture before async fetch
   function primeAudioForMobile() {
     try {
-      if (sharedAudio.paused && !sharedAudio.src) {
-        sharedAudio.muted = true;
-        sharedAudio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
-        const p = sharedAudio.play();
-        if (p && typeof p.then === 'function') {
-          p.then(() => { sharedAudio.pause(); sharedAudio.muted = false; }).catch(() => { sharedAudio.muted = false; });
-        }
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (Ctx) {
+        if (!audioCtx) audioCtx = new Ctx();
+        if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
       }
     } catch {}
   }
@@ -722,22 +790,13 @@
         nextPrefetch = null;
         if (!replyPlaybackActive) break;
 
-        // Prefetch next chunk of the reply while playing current one
-        if (i + 1 < chunks.length) {
+        // Prefetch next chunk of the reply while playing current one (Chirp 3 HD only to protect Gemini TTS RPM)
+        if (i + 1 < chunks.length && res.engine !== 'gemini-tts') {
           prefetchAbort = new AbortController();
           nextPrefetch = synthesizeSelectedEngine(chunks[i + 1].text, prefetchAbort.signal).catch(() => null);
         }
 
-        if (activeAudioUrl) URL.revokeObjectURL(activeAudioUrl);
-        activeAudioUrl = URL.createObjectURL(res.blob);
-        activeAudio = sharedAudio;
-        activeAudio.muted = false;
-        activeAudio.src = activeAudioUrl;
-        await new Promise((resolve, reject) => {
-          activeAudio.onended = resolve;
-          activeAudio.onerror = () => reject(new Error('تعذّر تشغيل صوت الرد.'));
-          activeAudio.play().catch(reject);
-        });
+        await playBlobReliably(res.blob);
       }
     } catch (err) {
       if (err?.name !== 'AbortError') setReadStatus(err.message || 'تعذّر تشغيل صوت الرد.');
@@ -792,7 +851,10 @@
         <div class="vai-quota-bar-wrap">
           <div class="vai-quota-row">
             <span id="vai-chirp-quota-text">الرصيد المجاني: 0 / 900,000 حرف</span>
-            <span id="vai-cache-saved-text">توفير الكاش: 0 حرف</span>
+            <div class="vai-quota-actions">
+              <span id="vai-cache-saved-text">توفير الكاش: 0 حرف</span>
+              <button type="button" class="vai-bypass-btn" id="vai-bypass-daily-btn" aria-pressed="false" title="تجاوز الحد اليومي مع إبقاء السقف الشهري الآمن (0$) فعّالًا">⚡ تجاوز الحد اليومي</button>
+            </div>
           </div>
           <div class="vai-progress"><div class="vai-progress-fill" id="vai-chirp-bar"></div></div>
         </div>
@@ -802,7 +864,8 @@
       <div class="vai-panel" data-vai-panel="discuss" hidden>
         <div class="vai-controls-row" style="margin-bottom:8px;">
           <span class="vai-hint" id="vai-discuss-quota-text">Gemini المجاني اليوم: 0 / 20 طلب</span>
-          <div style="display:flex;gap:6px;align-items:center;">
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+            <button type="button" class="vai-bypass-btn" id="vai-discuss-bypass-btn" aria-pressed="false" title="تجاوز الحد اليومي للنقاش">⚡ تجاوز الحد اليومي</button>
             <button type="button" class="vai-secondary-btn" id="vai-stop-reply-audio" hidden>⏹ إيقاف الصوت</button>
             <button type="button" class="vai-switch-pill" id="vai-switch-to-read">🎧 العودة للقراءة</button>
           </div>
@@ -884,6 +947,18 @@
   const elChatSend = dock.querySelector('#vai-chat-send');
   const elLiveDot = dock.querySelector('#vai-live-dot');
   const elStopReplyBtn = dock.querySelector('#vai-stop-reply-audio');
+  const elBypassDailyBtn = dock.querySelector('#vai-bypass-daily-btn');
+  const elDiscussBypassBtn = dock.querySelector('#vai-discuss-bypass-btn');
+
+  function toggleBypassDailyCap() {
+    const next = !settings.bypassDailyCap;
+    saveSettings({ bypassDailyCap: next });
+    setReadStatus(
+      next
+        ? 'تم تفعيل تجاوز الحد اليومي (مع بقاء السقف الشهري الآمن 0$ فعّالًا).'
+        : 'تمت إعادة تفعيل الحد اليومي الآمن.'
+    );
+  }
 
   function updateDiscussAudioBtn() {
     if (elStopReplyBtn) elStopReplyBtn.hidden = !replyPlaybackActive;
@@ -913,10 +988,19 @@
     const snap = tracker.getSnapshot(Date.now());
     const fmt = n => Number(n || 0).toLocaleString('en-US');
     const pct = Math.min(100, Math.round((snap.chirpMonthlyChars / snap.safeMonthlyCap) * 100));
-    elChirpQuotaText.textContent = `Chirp 3 HD الشهري: ${fmt(snap.chirpMonthlyChars)} / ${fmt(snap.safeMonthlyCap)} حرف (اليوم: ${fmt(snap.chirpDailyChars)} / ${fmt(snap.safeDailyCap)})`;
+    const bypassed = Boolean(settings.bypassDailyCap);
+    const dailyLabel = bypassed ? `${fmt(snap.chirpDailyChars)} — مفتوح` : `${fmt(snap.chirpDailyChars)} / ${fmt(snap.safeDailyCap)}`;
+    elChirpQuotaText.textContent = `Chirp 3 HD الشهري: ${fmt(snap.chirpMonthlyChars)} / ${fmt(snap.safeMonthlyCap)} حرف (اليوم: ${dailyLabel})`;
     elCacheSavedText.textContent = `تم توفير: ${fmt(snap.chirpSavedCacheChars + snap.chirpSavedCleanChars)} حرف`;
     elChirpBar.style.width = `${pct}%`;
-    elDiscussQuotaText.textContent = `Gemini المجاني اليوم: ${snap.geminiDailyRequests} / ${snap.geminiDailyCap} طلب (توفير الكاش: ${snap.geminiSavedCacheRequests})`;
+    const discussDailyLabel = bypassed ? `${snap.geminiDailyRequests} (الحد اليومي مفتوح)` : `${snap.geminiDailyRequests} / ${snap.geminiDailyCap} طلب`;
+    elDiscussQuotaText.textContent = `Gemini المجاني اليوم: ${discussDailyLabel} (توفير الكاش: ${snap.geminiSavedCacheRequests})`;
+    [elBypassDailyBtn, elDiscussBypassBtn].forEach(btn => {
+      if (!btn) return;
+      btn.classList.toggle('is-active', bypassed);
+      btn.setAttribute('aria-pressed', String(bypassed));
+      btn.textContent = bypassed ? '✓ الحد اليومي مفتوح' : '⚡ تجاوز الحد اليومي';
+    });
   }
 
   function appendChatMessage(role, text, fromCache = false) {
@@ -1009,6 +1093,8 @@
     switchTab('read');
   });
   if (elStopReplyBtn) elStopReplyBtn.addEventListener('click', stopReplyAudio);
+  if (elBypassDailyBtn) elBypassDailyBtn.addEventListener('click', toggleBypassDailyCap);
+  if (elDiscussBypassBtn) elDiscussBypassBtn.addEventListener('click', toggleBypassDailyCap);
 
   dock.querySelectorAll('.vai-chip').forEach(chip => {
     chip.addEventListener('click', () => askGemini(chip.dataset.vaiPrompt));

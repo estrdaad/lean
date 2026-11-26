@@ -10,8 +10,14 @@
 const SAFE_MONTHLY_CHARS = 900000; // < 1,000,000 Chirp 3 HD free monthly tier
 const SAFE_DAILY_CHARS = 30000;
 const SAFE_GEMINI_DAILY_REQ = 20;
-const SAFE_GEMINI_TTS_DAILY_REQ = 15;
+const SAFE_GEMINI_TTS_DAILY_REQ = 30;
 const MAX_TTS_TEXT_CHARS = 700;
+const GEMINI_TTS_MODELS = [
+  'gemini-3.8-flash-lite-tts',
+  'gemini-3.8-flash-tts',
+  'gemini-2.5-flash-preview-tts',
+  'gemini-3.1-flash-tts'
+];
 const ALLOWED_GEMINI_VOICES = new Set(['Charon', 'Orus', 'Fenrir', 'Aoede', 'Kore', 'Leda']);
 const ALLOWED_VOICES = new Set([
   'ar-XA-Chirp3-HD-Charon',
@@ -125,7 +131,7 @@ export async function handleTts(request, env, cors) {
   if (usedMonth + text.length > monthlyCap) {
     return jsonResp({ error: 'Monthly zero-cost Chirp 3 HD cap reached.', remainingMonthly: Math.max(0, monthlyCap - usedMonth) }, 429, cors);
   }
-  if (usedDay + text.length > dailyCap) {
+  if (body.bypassDailyCap !== true && usedDay + text.length > dailyCap) {
     return jsonResp({ error: 'Daily zero-cost Chirp 3 HD cap reached.', remainingDaily: Math.max(0, dailyCap - usedDay) }, 429, cors);
   }
 
@@ -185,11 +191,11 @@ export async function handleDiscuss(request, env, cors) {
     return jsonResp({ error: 'Invalid discussion payload.' }, 400, cors);
   }
 
-  // Enforce hard daily request cap for Gemini Free Tier
+  // Enforce hard daily request cap for Gemini Free Tier (unless explicitly bypassed)
   const dayKey = `gemini:d:${utcDayKey()}`;
   const dailyCap = Number(env.GEMINI_DAILY_CAP) || SAFE_GEMINI_DAILY_REQ;
   const usedDay = await getCounter(env, dayKey);
-  if (usedDay >= dailyCap) {
+  if (body.bypassDailyCap !== true && usedDay >= dailyCap) {
     return jsonResp({ error: 'Daily free-tier Gemini discussion cap reached.' }, 429, cors);
   }
 
@@ -246,7 +252,7 @@ export async function handleGeminiTts(request, env, cors) {
   const rawVoice = String(body.voice || 'Charon').replace(/^ar-XA-Chirp3-HD-/, '');
   const voiceName = ALLOWED_GEMINI_VOICES.has(rawVoice) ? rawVoice : 'Charon';
 
-  const cacheKeyHash = await sha256Hex(`gemini-tts-v2|${voiceName}|${text}`);
+  const cacheKeyHash = await sha256Hex(`gemini-tts-v3|${voiceName}|${text}`);
   const cacheUrl = new Request(`https://tts-cache.local/${cacheKeyHash}.wav`);
   const edgeCache = typeof caches !== 'undefined' ? caches.default : null;
   if (edgeCache) {
@@ -263,45 +269,95 @@ export async function handleGeminiTts(request, env, cors) {
   const dayKey = `gemini_tts:d:${utcDayKey()}`;
   const dailyCap = Number(env.GEMINI_TTS_DAILY_CAP) || SAFE_GEMINI_TTS_DAILY_REQ;
   const usedDay = await getCounter(env, dayKey);
-  if (usedDay >= dailyCap) {
-    return jsonResp({ error: 'Daily free-tier Gemini TTS cap reached.' }, 429, cors);
+  if (body.bypassDailyCap !== true && usedDay >= dailyCap) {
+    return jsonResp(
+      { error: 'Daily free-tier Gemini TTS cap reached.', engine: 'gemini-tts' },
+      429,
+      { ...cors, 'x-tts-engine': 'gemini-tts' }
+    );
   }
 
-  const upstream = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash-lite-tts:generateContent?key=${encodeURIComponent(env.GEMINI_API_KEY)}`,
-    {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text }] }],
-        generationConfig: {
-          responseModalities: ['AUDIO'],
-          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName } } }
-        }
-      })
-    }
-  );
-  if (!upstream.ok) {
-    return jsonResp({ error: 'Upstream Gemini TTS error', status: upstream.status }, upstream.status, cors);
+  let upstream = null;
+  let upstreamText = '';
+  let usedModel = GEMINI_TTS_MODELS[0];
+  for (const candidateModel of GEMINI_TTS_MODELS) {
+    usedModel = candidateModel;
+    upstream = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(candidateModel)}:generateContent?key=${encodeURIComponent(env.GEMINI_API_KEY)}`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text }] }],
+          generationConfig: {
+            responseModalities: ['AUDIO'],
+            speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName } } }
+          }
+        })
+      }
+    );
+    upstreamText = await upstream.text();
+    if (upstream.ok) break;
+    if (![404, 429, 500, 503].includes(upstream.status)) break;
+  }
+  if (!upstream || !upstream.ok) {
+    let detail = '';
+    try {
+      const parsed = JSON.parse(upstreamText);
+      detail = parsed?.error?.message || '';
+    } catch {}
+    const retryAfter = upstream?.headers?.get('retry-after') || undefined;
+    return jsonResp(
+      {
+        error: 'Upstream Gemini TTS error',
+        engine: 'gemini-tts',
+        model: usedModel,
+        status: upstream?.status || 502,
+        ...(detail ? { detail: detail.slice(0, 220) } : {}),
+        ...(retryAfter ? { retryAfter } : {})
+      },
+      upstream?.status || 502,
+      { ...cors, 'x-tts-engine': 'gemini-tts' }
+    );
   }
 
-  const data = await upstream.json();
+  let data;
+  try { data = JSON.parse(upstreamText); } catch { return jsonResp({ error: 'Invalid JSON from Gemini TTS.', engine: 'gemini-tts' }, 502, { ...cors, 'x-tts-engine': 'gemini-tts' }); }
   const inline = data?.candidates?.[0]?.content?.parts?.[0]?.inlineData;
-  if (!inline?.data) return jsonResp({ error: 'No audio returned from Gemini TTS.' }, 502, cors);
+  if (!inline?.data) return jsonResp({ error: 'No audio returned from Gemini TTS.', engine: 'gemini-tts' }, 502, { ...cors, 'x-tts-engine': 'gemini-tts' });
 
   await addCounter(env, dayKey, 1, 2 * 86400);
 
   const bin = atob(inline.data);
-  const bytes = new Uint8Array(bin.length);
+  let bytes = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  const hasRiff = bytes.length >= 4 && bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46;
+  const rawMime = inline.mimeType || 'audio/wav';
+  let contentType = rawMime;
+  if (!hasRiff && /pcm|l16|wav/i.test(rawMime)) {
+    const rateMatch = /rate=(\d+)/i.exec(rawMime);
+    const sampleRate = rateMatch ? Number(rateMatch[1]) : 24000;
+    const out = new Uint8Array(44 + bytes.length);
+    const v = new DataView(out.buffer);
+    const w = (off, s) => { for (let i = 0; i < s.length; i++) out[off + i] = s.charCodeAt(i); };
+    w(0, 'RIFF'); v.setUint32(4, 36 + bytes.length, true); w(8, 'WAVE');
+    w(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+    v.setUint32(24, sampleRate, true); v.setUint32(28, sampleRate * 2, true);
+    v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+    w(36, 'data'); v.setUint32(40, bytes.length, true);
+    out.set(bytes, 44);
+    bytes = out;
+    contentType = 'audio/wav';
+  }
 
   const audioResp = new Response(bytes, {
     status: 200,
     headers: {
-      'content-type': inline.mimeType || 'audio/wav',
+      'content-type': contentType,
       'cache-control': 'public, max-age=2592000',
       'x-cache': 'MISS',
       'x-tts-engine': 'gemini-tts',
+      'x-tts-model': usedModel,
       ...cors
     }
   });
