@@ -18,11 +18,45 @@
 
   function openDatabase() {
     return new Promise((resolve, reject) => {
-      const request = indexedDB.open('reader-library', 1);
-      request.onupgradeneeded = () => request.result.createObjectStore('books', { keyPath: 'id' });
+      const request = indexedDB.open('reader-library', 2);
+      request.onupgradeneeded = () => {
+        const db = request.result;
+        if (!db.objectStoreNames.contains('books')) db.createObjectStore('books', { keyPath: 'id' });
+        if (!db.objectStoreNames.contains('hosted_cache')) db.createObjectStore('hosted_cache', { keyPath: 'id' });
+      };
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
       request.onblocked = () => reject(new Error('أغلق تبويبات التطبيق الأخرى ثم أعد المحاولة.'));
+    });
+  }
+  function readCachedHosted(id) {
+    if (!database || !database.objectStoreNames.contains('hosted_cache')) return Promise.resolve(null);
+    return new Promise(resolve => {
+      try {
+        const req = database.transaction('hosted_cache').objectStore('hosted_cache').get(id);
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => resolve(null);
+      } catch (_) { resolve(null); }
+    });
+  }
+  function writeCachedHosted(entry) {
+    if (!database || !database.objectStoreNames.contains('hosted_cache')) return Promise.resolve();
+    return new Promise(resolve => {
+      try {
+        const tx = database.transaction('hosted_cache', 'readwrite');
+        tx.objectStore('hosted_cache').put(entry);
+        tx.oncomplete = tx.onerror = tx.onabort = () => resolve();
+      } catch (_) { resolve(); }
+    });
+  }
+  function loadBundledFallback() {
+    if (window.BUNDLED_READER_BOOK) return Promise.resolve(window.BUNDLED_READER_BOOK);
+    return new Promise(resolve => {
+      const s = document.createElement('script');
+      s.src = 'books/bundled-book.js';
+      s.onload = () => resolve(window.BUNDLED_READER_BOOK || null);
+      s.onerror = () => resolve(null);
+      document.head.appendChild(s);
     });
   }
   function readBooks() {
@@ -42,17 +76,46 @@
     });
   }
   async function allBooks() {
-    const map = new Map([[DEFAULT_ID, defaultBook]]);
-    hostedBooks.forEach(book => { if (book.id !== DEFAULT_ID) map.set(book.id, book); });
+    const map = new Map();
+    if (defaultBook) map.set(DEFAULT_ID, defaultBook);
+    hostedBooks.forEach(book => { if (!map.has(book.id)) map.set(book.id, book); });
     (await readBooks()).forEach(book => map.set(book.id, book));
     return [...map.values()];
   }
-  async function loadBook(book) {
-    if (!book.hostedPath) return book;
+  async function loadBook(book, { allowBackgroundRefresh = true } = {}) {
+    if (!book || !book.hostedPath) return book;
+    const cached = await readCachedHosted(book.id);
+    if (cached && cached.book && cached.hostedPath === book.hostedPath) {
+      // Stale-while-revalidate: return instant cached book and check for updates quietly
+      if (allowBackgroundRefresh && location.protocol !== 'file:') {
+        fetch(book.hostedPath, { method: 'HEAD' }).then(async head => {
+          if (!head.ok) return;
+          const etag = head.headers.get('etag') || '';
+          const lm = head.headers.get('last-modified') || '';
+          if ((etag && etag !== cached.etag) || (!etag && lm && lm !== cached.lastModified)) {
+            const freshResp = await fetch(book.hostedPath);
+            if (!freshResp.ok) return;
+            const fresh = validateBook(await freshResp.json());
+            if (fresh.id === book.id) {
+              await writeCachedHosted({ id: book.id, hostedPath: book.hostedPath, book: fresh, etag, lastModified: lm, cachedAt: Date.now() });
+            }
+          }
+        }).catch(() => {});
+      }
+      return cached.book;
+    }
     const response = await fetch(book.hostedPath);
     if (!response.ok) throw new Error('تعذر تحميل الكتاب من المستودع.');
     const loaded = validateBook(await response.json());
     if (loaded.id !== book.id) throw new Error('معرّف الكتاب لا يطابق فهرس المستودع.');
+    await writeCachedHosted({
+      id: book.id,
+      hostedPath: book.hostedPath,
+      book: loaded,
+      etag: response.headers.get('etag') || '',
+      lastModified: response.headers.get('last-modified') || '',
+      cachedAt: Date.now()
+    });
     return loaded;
   }
 
@@ -125,7 +188,11 @@
     article.dir = book.direction;
     document.body.dataset.bookDirection = book.direction;
     article.lang = book.language;
-    article.querySelectorAll('img').forEach(image => { image.src = book.assets[image.getAttribute('src')] || image.getAttribute('src'); });
+    article.querySelectorAll('img').forEach(image => {
+      image.loading = 'lazy';
+      image.decoding = 'async';
+      image.src = book.assets[image.getAttribute('src')] || image.getAttribute('src');
+    });
     const cover = document.querySelector('.cover-main-img');
     const coverSource = book.assets[book.cover] || book.cover;
     cover.hidden = !coverSource;
@@ -216,28 +283,57 @@
     } finally { busy = false; document.getElementById('library-files').value = ''; }
   }
   async function initialize() {
-    if (location.protocol !== 'file:') {
-      try {
-        const response = await fetch('books/catalog.json');
-        if (!response.ok) throw new Error('Unavailable');
-        const catalog = await response.json();
-        hostedBooks = catalog.filter(book => safeId(book.id) && typeof book.title === 'string' && typeof book.author === 'string' && /^books\/[a-zA-Z0-9_-]+\.json$/.test(book.path))
-          .map(book => ({ ...book, hostedPath: book.path, assets: {}, cover: '' }));
-      } catch (_) { /* The bundled book stays available offline. */ }
-      try {
-        const response = await fetch('books/lean-startup.json');
-        if (!response.ok) throw new Error('Unavailable');
-        const candidate = await response.json();
-        if (candidate.format === 'reader-book' && candidate.version === 1 && candidate.id === DEFAULT_ID) defaultBook = candidate;
-      } catch (_) { /* Bundled copy keeps direct-file and offline startup available. */ }
-    }
-    try { database = await openDatabase(); } catch (_) { report('تخزين الكتب غير متاح في هذا المتصفح. يمكنك قراءة الكتاب المرفق وتصديره.', true); document.getElementById('library-import').disabled = true; }
-    let books;
-    try { books = await allBooks(); } catch (_) { database = null; books = [defaultBook]; report('تعذر الوصول إلى الكتب المحفوظة. يُعرض الكتاب المرفق مؤقتًا.', true); document.getElementById('library-import').disabled = true; }
     const requestedBook = new URLSearchParams(location.search).get('book');
-    activeBook = books.find(book => book.id === requestedBook) || books.find(book => book.id === setting('reader-active-book')) || books[0];
-    try { activeBook = await loadBook(activeBook); }
-    catch (error) { activeBook = defaultBook; report(error.message, true); }
+    const desiredId = requestedBook || setting('reader-active-book') || DEFAULT_ID;
+
+    try { database = await openDatabase(); } catch (_) { report('تخزين الكتب غير متاح في هذا المتصفح. يمكنك قراءة الكتاب المرفق وتصديره.', true); document.getElementById('library-import').disabled = true; }
+
+    // Fast path: if the desired book is already cached locally in IndexedDB, open it immediately!
+    const localBooks = database ? await readBooks().catch(() => []) : [];
+    const localMatch = localBooks.find(b => b.id === desiredId);
+    const cachedHosted = !localMatch ? await readCachedHosted(desiredId) : null;
+
+    if (location.protocol !== 'file:') {
+      const catalogPromise = fetch('books/catalog.json')
+        .then(r => (r.ok ? r.json() : []))
+        .then(catalog => {
+          hostedBooks = catalog.filter(book => safeId(book.id) && typeof book.title === 'string' && typeof book.author === 'string' && /^books\/[a-zA-Z0-9_-]+\.json$/.test(book.path))
+            .map(book => ({ ...book, hostedPath: book.path, assets: {}, cover: '' }));
+          if (!hostedBooks.some(b => b.id === DEFAULT_ID)) {
+            hostedBooks.unshift({ id: DEFAULT_ID, title: 'الشركة الناشئة المرنة', author: 'إريك ريس', hostedPath: 'books/lean-startup.json', assets: {}, cover: '' });
+          }
+        })
+        .catch(() => {
+          hostedBooks = [{ id: DEFAULT_ID, title: 'الشركة الناشئة المرنة', author: 'إريك ريس', hostedPath: 'books/lean-startup.json', assets: {}, cover: '' }];
+        });
+
+      if (localMatch) {
+        activeBook = localMatch;
+        catalogPromise.catch(() => {});
+      } else if (cachedHosted && cachedHosted.book) {
+        activeBook = cachedHosted.book;
+        // Refresh catalog and check for book updates quietly in the background
+        catalogPromise.then(() => {
+          const entry = hostedBooks.find(b => b.id === activeBook.id);
+          if (entry) loadBook(entry, { allowBackgroundRefresh: true }).catch(() => {});
+        }).catch(() => {});
+      } else {
+        await catalogPromise;
+        const target = hostedBooks.find(b => b.id === desiredId) || hostedBooks[0];
+        try {
+          activeBook = await loadBook(target);
+        } catch (error) {
+          defaultBook = await loadBundledFallback();
+          activeBook = defaultBook;
+          report(error.message, true);
+        }
+      }
+    } else {
+      defaultBook = await loadBundledFallback();
+      activeBook = localMatch || defaultBook;
+    }
+
+    if (!defaultBook && activeBook && activeBook.id === DEFAULT_ID) defaultBook = activeBook;
     hydrateBook(activeBook); migrateOldProgress();
     document.querySelectorAll('[data-open-library]').forEach(element => element.addEventListener('click', openLibrary));
     document.getElementById('library-close').onclick = closeLibrary;

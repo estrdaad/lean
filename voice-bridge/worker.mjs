@@ -12,6 +12,7 @@ const SAFE_DAILY_CHARS = 30000;
 const SAFE_GEMINI_DAILY_REQ = 20;
 const SAFE_GEMINI_TTS_DAILY_REQ = 30;
 const MAX_TTS_TEXT_CHARS = 700;
+const MAX_GEMINI_TTS_TEXT_CHARS = 2200;
 const GEMINI_TTS_MODELS = [
   'gemini-3.8-flash-lite-tts',
   'gemini-3.8-flash-tts',
@@ -101,8 +102,8 @@ export async function handleTts(request, env, cors) {
   try { body = await request.json(); } catch { return jsonResp({ error: 'Invalid JSON.' }, 400, cors); }
 
   const text = String(body.text || '').trim();
-  if (!text || text.length > MAX_TTS_TEXT_CHARS) {
-    return jsonResp({ error: `Text must be 1..${MAX_TTS_TEXT_CHARS} characters.` }, 400, cors);
+  if (!text || text.length > MAX_GEMINI_TTS_TEXT_CHARS) {
+    return jsonResp({ error: `Text must be 1..${MAX_GEMINI_TTS_TEXT_CHARS} characters.` }, 400, cors);
   }
   const voice = ALLOWED_VOICES.has(body.voice) ? body.voice : 'ar-XA-Chirp3-HD-Charon';
   const speakingRate = Math.min(1.6, Math.max(0.75, Number(body.speakingRate) || 1.0));
@@ -246,8 +247,8 @@ export async function handleGeminiTts(request, env, cors) {
   try { body = await request.json(); } catch { return jsonResp({ error: 'Invalid JSON.' }, 400, cors); }
 
   const text = String(body.text || '').trim();
-  if (!text || text.length > MAX_TTS_TEXT_CHARS) {
-    return jsonResp({ error: `Text must be 1..${MAX_TTS_TEXT_CHARS} characters.` }, 400, cors);
+  if (!text || text.length > MAX_GEMINI_TTS_TEXT_CHARS) {
+    return jsonResp({ error: `Text must be 1..${MAX_GEMINI_TTS_TEXT_CHARS} characters.` }, 400, cors);
   }
   const rawVoice = String(body.voice || 'Charon').replace(/^ar-XA-Chirp3-HD-/, '');
   const voiceName = ALLOWED_GEMINI_VOICES.has(rawVoice) ? rawVoice : 'Charon';

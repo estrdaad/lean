@@ -68,4 +68,31 @@ button:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
   .pdf-footer { align-items: flex-start; }
   #pdf-preview { height: 45dvh; }
 }
+/* Large, comfortable Page/Appearance settings modal */
+#modal-appearance {
+  align-items: center;
+  padding: 12px;
+}
+#modal-appearance .modal-sheet {
+  width: min(860px, calc(100vw - 24px));
+  max-height: 90dvh;
+  border-radius: 24px;
+}
+#modal-appearance .modal-sheet-body {
+  padding: 20px 24px 28px;
+}
+@media (max-width: 660px) {
+  #modal-appearance {
+    padding: 8px;
+  }
+  #modal-appearance .modal-sheet {
+    width: calc(100vw - 16px);
+    max-height: 92dvh;
+    border-radius: 20px;
+  }
+  #modal-appearance .modal-sheet-body {
+    padding: 16px 16px 24px;
+  }
+}
+
 @media print { #reader-tools-toggle, #reader-tools-panel, .chapter-progress, #pdf-dialog { display: none !important; } }

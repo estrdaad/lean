@@ -21,7 +21,9 @@
     GEMINI_MAX_OUTPUT_TOKENS: 320,     // Concise mode output cap
     GEMINI_EXPANDED_OUTPUT_TOKENS: 1200, // Expanded in-depth discussion cap
     CHUNK_TARGET_CHARS: 420,           // Optimal chunk size for Chirp 3 HD
-    CHUNK_MAX_CHARS: 650               // Hard upper bound per TTS request
+    CHUNK_MAX_CHARS: 650,              // Hard upper bound per Chirp 3 HD request
+    GEMINI_TTS_TARGET_CHARS: 1800,     // Full page in 1 request for Gemini TTS (3-4x longer free listening)
+    GEMINI_TTS_MAX_CHARS: 2150         // Hard upper bound per Gemini TTS request
   });
 
   const CHIRP3_VOICES = Object.freeze([
@@ -258,10 +260,10 @@
       return getSnapshot(now);
     }
 
-    function canSpendGemini(now = Date.now()) {
+    function canSpendGemini(now = Date.now(), enforceDaily = true) {
       rollover(now);
       const remainingDaily = Math.max(0, geminiDailyCap - state.geminiDailyRequests);
-      if (state.geminiDailyRequests >= geminiDailyCap) {
+      if (enforceDaily && state.geminiDailyRequests >= geminiDailyCap) {
         return { allowed: false, reason: 'daily_cap', remainingDaily, waitMs: 0 };
       }
       const elapsed = now - state.geminiLastRequestAt;

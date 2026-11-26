@@ -610,7 +610,11 @@
 
   function loadCurrentPageChunks() {
     const paragraphs = getVisiblePageParagraphs();
-    const { chunks, totalSavedByClean } = Core.chunkParagraphs(paragraphs);
+    const useFullPageChunks = settings.ttsEngine === 'gemini-tts' || (settings.ttsEngine !== 'chirp3' && !settings.googleTtsApiKey);
+    const chunkOpts = useFullPageChunks
+      ? { targetChars: Core.LIMITS.GEMINI_TTS_TARGET_CHARS, maxChars: Core.LIMITS.GEMINI_TTS_MAX_CHARS }
+      : { targetChars: Core.LIMITS.CHUNK_TARGET_CHARS, maxChars: Core.LIMITS.CHUNK_MAX_CHARS };
+    const { chunks, totalSavedByClean } = Core.chunkParagraphs(paragraphs, chunkOpts);
     if (totalSavedByClean > 0) {
       persistQuota(tracker.recordCleanSavings(totalSavedByClean));
       renderQuotaUI();
@@ -1027,6 +1031,7 @@
     if (tabName === 'discuss' && playback.isPlaying) {
       pauseReading();
     }
+    dock.classList.toggle('is-expanded', tabName === 'settings' || tabName === 'discuss');
     dock.querySelectorAll('.vai-tab').forEach(btn => {
       const active = btn.dataset.vaiTab === tabName;
       btn.classList.toggle('is-active', active);
