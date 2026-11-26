@@ -246,7 +246,7 @@ export async function handleGeminiTts(request, env, cors) {
   const rawVoice = String(body.voice || 'Charon').replace(/^ar-XA-Chirp3-HD-/, '');
   const voiceName = ALLOWED_GEMINI_VOICES.has(rawVoice) ? rawVoice : 'Charon';
 
-  const cacheKeyHash = await sha256Hex(`gemini-tts|${voiceName}|${text}`);
+  const cacheKeyHash = await sha256Hex(`gemini-tts-v2|${voiceName}|${text}`);
   const cacheUrl = new Request(`https://tts-cache.local/${cacheKeyHash}.wav`);
   const edgeCache = typeof caches !== 'undefined' ? caches.default : null;
   if (edgeCache) {
@@ -255,6 +255,7 @@ export async function handleGeminiTts(request, env, cors) {
       const h = new Headers(cached.headers);
       Object.entries(cors).forEach(([k, v]) => h.set(k, v));
       h.set('x-cache', 'HIT');
+      h.set('x-tts-engine', 'gemini-tts');
       return new Response(cached.body, { status: 200, headers: h });
     }
   }
@@ -272,7 +273,7 @@ export async function handleGeminiTts(request, env, cors) {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: `اقرأ النص العربي التالي بوضوح وتشكيل سليم ونبرة قراءة كتب هادئة دون إضافة أي تعليق:\n${text}` }] }],
+        contents: [{ parts: [{ text }] }],
         generationConfig: {
           responseModalities: ['AUDIO'],
           speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName } } }
@@ -300,6 +301,7 @@ export async function handleGeminiTts(request, env, cors) {
       'content-type': inline.mimeType || 'audio/wav',
       'cache-control': 'public, max-age=2592000',
       'x-cache': 'MISS',
+      'x-tts-engine': 'gemini-tts',
       ...cors
     }
   });

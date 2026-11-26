@@ -214,10 +214,17 @@
   }
 
   // --- Audio Synthesis Backends (Chirp 3 HD + Free Browser Fallback) ---
+  let sharedAudio = new Audio();
+  sharedAudio.preload = 'auto';
   let activeAudio = null;
   let activeAudioUrl = null;
   let activeAbort = null;
-  let prefetchMap = new Map(); // cacheKey -> Promise<Blob>
+  let prefetchAbort = null;
+  let prefetchMap = new Map(); // prefetchKey -> Promise<{ blob, source, engine } | null>
+
+  function makePrefetchKey(text) {
+    return Core.makeAudioCacheKey(settings.ttsEngine || 'auto', settings.chirpVoice, settings.speakingRate, text);
+  }
 
   function base64ToAudioBlob(base64, mime = 'audio/mpeg') {
     const bin = atob(base64);
@@ -229,7 +236,7 @@
   async function synthesizeChirp3(text, signal) {
     const voice = settings.chirpVoice || Core.CHIRP3_VOICES[0].id;
     const rate = Number(settings.speakingRate) || 1.0;
-    const cacheKey = Core.makeAudioCacheKey('chirp3', voice, rate, text);
+    const cacheKey = Core.makeAudioCacheKey('chirp3-v2', voice, rate, text);
 
     const cached = await cacheGetAudio(cacheKey);
     if (cached) {
@@ -298,15 +305,18 @@
       blob = base64ToAudioBlob(data.audioContent, 'audio/mpeg');
     }
 
-    persistQuota(tracker.recordChirpSpend(text.length));
-    renderQuotaUI();
+    const servedEngine = response.headers.get('x-tts-engine') === 'gemini-tts' ? 'gemini-tts' : 'chirp3';
+    if (servedEngine === 'chirp3') {
+      persistQuota(tracker.recordChirpSpend(text.length));
+      renderQuotaUI();
+    }
     await cachePutAudio(cacheKey, blob);
-    return { blob, source: 'network', engine: 'chirp3' };
+    return { blob, source: 'network', engine: servedEngine };
   }
 
   async function synthesizeGeminiTts(text, signal) {
     const voice = (settings.chirpVoice || Core.CHIRP3_VOICES[0].id).replace(/^ar-XA-Chirp3-HD-/, '');
-    const cacheKey = Core.makeAudioCacheKey('gemini-tts', voice, 1.0, text);
+    const cacheKey = Core.makeAudioCacheKey('gemini-tts-v2', voice, 1.0, text);
 
     const cached = await cacheGetAudio(cacheKey);
     if (cached) {
@@ -338,7 +348,7 @@
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
-            contents: [{ parts: [{ text: `اقرأ النص العربي التالي بوضوح ونبرة هادئة دون تعليق:\n${text}` }] }],
+            contents: [{ parts: [{ text }] }],
             generationConfig: {
               responseModalities: ['AUDIO'],
               speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } }
@@ -416,9 +426,13 @@
 
   function stopAudioHardware() {
     if (activeAbort) { activeAbort.abort(); activeAbort = null; }
+    if (prefetchAbort) { prefetchAbort.abort(); prefetchAbort = null; }
     if (activeAudio) {
+      activeAudio.onended = null;
+      activeAudio.onerror = null;
       activeAudio.pause();
-      activeAudio.src = '';
+      activeAudio.removeAttribute('src');
+      activeAudio.load();
       activeAudio = null;
     }
     if (activeAudioUrl) {
@@ -474,13 +488,12 @@
     const nextIdx = playback.chunkIndex + 1;
     if (nextIdx >= playback.chunks.length) return;
     const nextText = playback.chunks[nextIdx].text;
-    const key = Core.makeAudioCacheKey('chirp3', settings.chirpVoice, settings.speakingRate, nextText);
+    const key = makePrefetchKey(nextText);
     if (prefetchMap.has(key)) return;
-    // Only prefetch if credentials exist and quota allows
-    const check = tracker.canSpendChirp(nextText.length, Date.now(), true);
-    if (!check.allowed || (!settings.proxyUrl && !settings.googleTtsApiKey)) return;
-    const ctrl = new AbortController();
-    const p = synthesizeChirp3(nextText, ctrl.signal).catch(() => null);
+    if (!settings.proxyUrl && !settings.googleTtsApiKey && !settings.geminiApiKey) return;
+    if (prefetchAbort) prefetchAbort.abort();
+    prefetchAbort = new AbortController();
+    const p = synthesizeSelectedEngine(nextText, prefetchAbort.signal).catch(() => null);
     prefetchMap.set(key, p);
   }
 
@@ -501,13 +514,14 @@
 
     const chunk = playback.chunks[playback.chunkIndex];
     updateReadUI();
-    setReadStatus('جارٍ تجهيز الصوت (Chirp 3 HD)...');
 
     try {
       activeAbort = new AbortController();
-      const key = Core.makeAudioCacheKey('chirp3', settings.chirpVoice, settings.speakingRate, chunk.text);
+      const key = makePrefetchKey(chunk.text);
       const pendingPrefetch = prefetchMap.get(key);
+      if (!pendingPrefetch) setReadStatus('جارٍ تجهيز الصوت...');
       const result = (pendingPrefetch && (await pendingPrefetch)) || (await synthesizeSelectedEngine(chunk.text, activeAbort.signal));
+      prefetchMap.delete(key);
       if (!playback.isPlaying) return;
 
       playback.activeEngine = result.engine;
@@ -516,8 +530,9 @@
         ? `يقرأ الآن: ${engineName} (من الذاكرة المؤقتة — 0 استهلاك)`
         : `يقرأ الآن: ${engineName} (0$ ضمن الباقة المجانية)`);
 
+      if (activeAudioUrl) URL.revokeObjectURL(activeAudioUrl);
       activeAudioUrl = URL.createObjectURL(result.blob);
-      activeAudio = new Audio(activeAudioUrl);
+      activeAudio = sharedAudio;
       activeAudio.onended = () => {
         if (!playback.isPlaying) return;
         playback.chunkIndex += 1;
@@ -528,8 +543,9 @@
         stopReading(false);
         setReadStatus('تعذّر تشغيل المقطع الصوتي.');
       };
+      activeAudio.src = activeAudioUrl;
       await activeAudio.play();
-      // Lazy 1-chunk prefetch only after playback actually begins
+      // Immediately prefetch next chunk while current chunk is playing for seamless transitions
       prefetchNextChunk();
     } catch (err) {
       if (err.name === 'AbortError' || !playback.isPlaying) return;
