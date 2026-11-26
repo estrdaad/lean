@@ -274,28 +274,65 @@
 
   async function playBlobReliably(rawBlob) {
     const { blob, buffer } = await normalizeAudioBlob(rawBlob);
-    // Prefer Web Audio API when AudioContext is available (rock-solid on iOS Safari after async fetches)
-    const Ctx = window.AudioContext || window.webkitAudioContext;
-    if (Ctx) {
-      try {
-        await playBufferWithWebAudio(buffer);
-        return;
-      } catch (webAudioErr) {
-        if (webAudioErr?.name === 'AbortError') throw webAudioErr;
-      }
-    }
     if (activeAudioUrl) URL.revokeObjectURL(activeAudioUrl);
     activeAudioUrl = URL.createObjectURL(blob);
     activeAudio = sharedAudio;
     activeAudio.muted = false;
     activeAudio.src = activeAudioUrl;
     activeAudio.load();
-    await new Promise((resolve, reject) => {
-      activeAudio.onended = resolve;
-      activeAudio.onerror = () => reject(new Error('تعذّر تشغيل المقطع الصوتي.'));
-      const p = activeAudio.play();
-      if (p && typeof p.catch === 'function') p.catch(reject);
-    });
+    try {
+      await new Promise((resolve, reject) => {
+        activeAudio.onended = resolve;
+        activeAudio.onerror = () => reject(new Error('AUDIO_ELEMENT_ERROR'));
+        const p = activeAudio.play();
+        if (p && typeof p.catch === 'function') p.catch(reject);
+      });
+      return;
+    } catch (err) {
+      if (err?.name === 'AbortError') throw err;
+      // Only fall back to Web Audio API if HTMLAudioElement itself failed to decode
+      activeAudio.onended = null;
+      activeAudio.onerror = null;
+      activeAudio.pause();
+      await playBufferWithWebAudio(buffer);
+    }
+  }
+
+  function updateMediaSession(isPlayingNow) {
+    if (!('mediaSession' in navigator) || typeof MediaMetadata === 'undefined') return;
+    try {
+      const book = window.BookLibrary.activeBook || {};
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: app.state.currentChapterTitle || book.title || 'مكتبة القراءة',
+        artist: book.author || 'القارئ الصوتي',
+        album: book.title || ''
+      });
+      navigator.mediaSession.playbackState = isPlayingNow ? 'playing' : 'paused';
+    } catch {}
+  }
+
+  if ('mediaSession' in navigator) {
+    try {
+      navigator.mediaSession.setActionHandler('play', () => { if (!playback.isPlaying) togglePlayPause(); });
+      navigator.mediaSession.setActionHandler('pause', () => { if (playback.isPlaying) pauseReading(); });
+      navigator.mediaSession.setActionHandler('stop', () => stopReading(false));
+      navigator.mediaSession.setActionHandler('nexttrack', () => {
+        if (!playback.chunks.length) return;
+        playback.chunkIndex = Math.min(playback.chunks.length - 1, playback.chunkIndex + 1);
+        stopAudioHardware();
+        playback.isPlaying = true;
+        playback.isPaused = false;
+        playCurrentChunk();
+      });
+      navigator.mediaSession.setActionHandler('previoustrack', () => {
+        if (!playback.chunks.length) return;
+        playback.chunkIndex = Math.max(0, playback.chunkIndex - 1);
+        stopAudioHardware();
+        playback.isPlaying = true;
+        playback.isPaused = false;
+        playCurrentChunk();
+      });
+    } catch {}
   }
 
   function base64ToAudioBlob(base64, mime = 'audio/mpeg') {
@@ -758,9 +795,31 @@
     }
   }
 
-  // Unlock Web Audio Context on mobile Safari during user gesture before async fetch
+  // Unlock HTMLAudioElement with a valid tiny silent WAV on user gesture so iOS allows background playback
+  let silentPrimeUrl = null;
+  function getSilentWavUrl() {
+    if (silentPrimeUrl) return silentPrimeUrl;
+    const sampleCount = 1200; // 0.05s at 24kHz
+    const dataLen = sampleCount * 2;
+    const buf = new ArrayBuffer(44 + dataLen);
+    const v = new DataView(buf);
+    const w = (off, s) => { for (let i = 0; i < s.length; i++) v.setUint8(off + i, s.charCodeAt(i)); };
+    w(0, 'RIFF'); v.setUint32(4, 36 + dataLen, true); w(8, 'WAVE');
+    w(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+    v.setUint32(24, 24000, true); v.setUint32(28, 48000, true);
+    v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+    w(36, 'data'); v.setUint32(40, dataLen, true);
+    silentPrimeUrl = URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }));
+    return silentPrimeUrl;
+  }
+
   function primeAudioForMobile() {
     try {
+      if (sharedAudio.paused && !sharedAudio.currentTime) {
+        sharedAudio.src = getSilentWavUrl();
+        const p = sharedAudio.play();
+        if (p && typeof p.then === 'function') p.catch(() => {});
+      }
       const Ctx = window.AudioContext || window.webkitAudioContext;
       if (Ctx) {
         if (!audioCtx) audioCtx = new Ctx();
@@ -976,6 +1035,7 @@
   function updateReadUI() {
     elPlayBtn.textContent = playback.isPlaying ? '⏸ إيقاف مؤقت' : (playback.isPaused ? '▶ متابعة القراءة' : '▶ استماع للصفحة');
     if (elLiveDot) elLiveDot.classList.toggle('is-playing', playback.isPlaying);
+    updateMediaSession(playback.isPlaying);
     if (playback.chunks.length) {
       const idx = Math.min(playback.chunkIndex, playback.chunks.length - 1);
       elChunkCounter.textContent = `مقطع ${idx + 1} / ${playback.chunks.length}`;
