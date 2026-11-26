@@ -223,8 +223,31 @@
       const selected = selection.toString().trim();
       if (selected.length >= 12) return selected.slice(0, Core.LIMITS.GEMINI_MAX_CONTEXT_CHARS);
     }
+    const allBlocks = [...article.querySelectorAll('p,h1,h2,h3,h4,li')];
     const paragraphs = getVisiblePageParagraphs();
-    return paragraphs.map(p => p.text).join('\n').slice(0, Core.LIMITS.GEMINI_MAX_CONTEXT_CHARS);
+    if (!paragraphs.length) return '';
+    // Include up to 2 preceding paragraphs for stronger narrative continuity
+    const firstIdx = paragraphs[0].blockIndex;
+    const leadIn = [];
+    for (let i = Math.max(0, firstIdx - 2); i < firstIdx; i++) {
+      const t = extractCleanBlockText(allBlocks[i]).trim();
+      if (t) leadIn.push(t);
+    }
+    const combined = [...leadIn, ...paragraphs.map(p => p.text)].join('\n');
+    return combined.slice(0, Core.LIMITS.GEMINI_MAX_CONTEXT_CHARS);
+  }
+
+  // --- Live Cloudflare KV Status Sync ---
+  let remoteStatus = null;
+  async function refreshRemoteStatus() {
+    const proxyBase = (settings.proxyUrl || '').trim().replace(/\/+$/, '');
+    if (!proxyBase) return;
+    try {
+      const res = await fetch(`${proxyBase}/status`, { cache: 'no-store' });
+      if (!res.ok) return;
+      remoteStatus = await res.json();
+      renderQuotaUI();
+    } catch {}
   }
 
   // --- Audio Synthesis Backends (Chirp 3 HD + Free Browser Fallback) ---
@@ -521,13 +544,14 @@
     }
   }
 
-  // --- Playback State Machine (Reading Mode) ---
+  // --- Playback State Machine (Reading Mode — Logical Continuous Queue) ---
   const playback = {
     isPlaying: false,
     isPaused: false,
     chunks: [],
     chunkIndex: 0,
     pageNumber: 1,
+    lastBlockIndex: -1,
     activeEngine: 'chirp3'
   };
 
@@ -603,19 +627,17 @@
   async function playCurrentChunk() {
     if (!playback.isPlaying) return;
     if (playback.chunkIndex >= playback.chunks.length) {
-      if (settings.autoTurnPage && app.state.currentPage < app.state.totalPages) {
-        app.nextPage();
-        await new Promise(r => setTimeout(r, 320));
-        if (!playback.isPlaying) return;
-        loadCurrentPageChunks();
-        if (playback.chunks.length) return playCurrentChunk();
+      // Seamlessly continue reading next logical blocks even while iPhone screen is locked
+      if (settings.autoTurnPage && loadLogicalChunksFrom(playback.lastBlockIndex + 1)) {
+        return playCurrentChunk();
       }
       stopReading(true);
-      setReadStatus('انتهت قراءة الصفحة الحالية.');
+      setReadStatus('انتهت قراءة الكتاب.');
       return;
     }
 
     const chunk = playback.chunks[playback.chunkIndex];
+    syncVisualPageToChunk(chunk);
     updateReadUI();
 
     try {
@@ -635,6 +657,7 @@
 
       // Immediately prefetch next chunk while current chunk is playing for seamless transitions
       prefetchNextChunk();
+      refreshRemoteStatus();
       await playBlobReliably(result.blob);
       if (!playback.isPlaying) return;
       playback.chunkIndex += 1;
@@ -646,20 +669,60 @@
     }
   }
 
-  function loadCurrentPageChunks() {
-    const paragraphs = getVisiblePageParagraphs();
+  function loadLogicalChunksFrom(startBlockIdx) {
+    const allBlocks = [...article.querySelectorAll('p,h1,h2,h3,h4,li')];
+    if (!allBlocks.length || startBlockIdx >= allBlocks.length) {
+      playback.chunks = [];
+      playback.chunkIndex = 0;
+      return false;
+    }
+    const batch = [];
+    let endIdx = startBlockIdx;
+    for (let i = Math.max(0, startBlockIdx); i < allBlocks.length && batch.length < 24; i++) {
+      endIdx = i;
+      const text = extractCleanBlockText(allBlocks[i]).trim();
+      if (text) batch.push({ blockIndex: i, text });
+    }
     const useFullPageChunks = settings.ttsEngine === 'gemini-tts' || (settings.ttsEngine !== 'chirp3' && !settings.googleTtsApiKey);
     const chunkOpts = useFullPageChunks
       ? { targetChars: Core.LIMITS.GEMINI_TTS_TARGET_CHARS, maxChars: Core.LIMITS.GEMINI_TTS_MAX_CHARS }
       : { targetChars: Core.LIMITS.CHUNK_TARGET_CHARS, maxChars: Core.LIMITS.CHUNK_MAX_CHARS };
-    const { chunks, totalSavedByClean } = Core.chunkParagraphs(paragraphs, chunkOpts);
+    const { chunks, totalSavedByClean } = Core.chunkParagraphs(batch, chunkOpts);
     if (totalSavedByClean > 0) {
       persistQuota(tracker.recordCleanSavings(totalSavedByClean));
       renderQuotaUI();
     }
     playback.chunks = chunks;
     playback.chunkIndex = 0;
+    playback.lastBlockIndex = endIdx;
     playback.pageNumber = app.state.currentPage;
+    return chunks.length > 0;
+  }
+
+  function loadCurrentPageChunks() {
+    const visible = getVisiblePageParagraphs();
+    const startIdx = visible.length
+      ? visible[0].blockIndex
+      : (Number.isInteger(app.state.readingLocation?.block) ? app.state.readingLocation.block : 0);
+    return loadLogicalChunksFrom(startIdx);
+  }
+
+  function syncVisualPageToChunk(chunk) {
+    if (!settings.autoTurnPage || document.hidden || !chunk?.blockIndexes?.length) return;
+    const allBlocks = [...article.querySelectorAll('p,h1,h2,h3,h4,li')];
+    const targetEl = allBlocks[chunk.blockIndexes[0]];
+    if (!targetEl || !columnWindow) return;
+    const viewport = columnWindow.getBoundingClientRect();
+    const rect = targetEl.getBoundingClientRect();
+    const alreadyVisible = rect.right > viewport.left + 8 && rect.left < viewport.right - 8;
+    if (!alreadyVisible && typeof app.restoreProgress === 'function') {
+      const fullBlocks = [...article.querySelectorAll('p,h1,h2,h3,h4,li,figure,table')];
+      const fullIdx = fullBlocks.indexOf(targetEl);
+      if (fullIdx >= 0) {
+        app.restoreProgress({ page: app.state.currentPage, location: { block: fullIdx, offset: 0 }, pause: app.state.pauseMarker });
+        playback.pageNumber = app.state.currentPage;
+      }
+    }
   }
 
   function togglePlayPause() {
@@ -836,7 +899,7 @@
     playback.isPaused = false;
     updateReadUI();
 
-    const cleanFull = Core.cleanTextForTTS(String(text || '').replace(/[*#`_~]/g, ' ')).text;
+    const cleanFull = Core.cleanReplyForSpeech(text);
     if (!cleanFull) return;
     const { chunks } = Core.chunkParagraphs([{ blockIndex: 0, text: cleanFull }]);
     if (!chunks.length) return;
@@ -1052,13 +1115,35 @@
   function renderQuotaUI() {
     const snap = tracker.getSnapshot(Date.now());
     const fmt = n => Number(n || 0).toLocaleString('en-US');
-    const pct = Math.min(100, Math.round((snap.chirpMonthlyChars / snap.safeMonthlyCap) * 100));
     const bypassed = Boolean(settings.bypassDailyCap);
-    const dailyLabel = bypassed ? `${fmt(snap.chirpDailyChars)} — مفتوح` : `${fmt(snap.chirpDailyChars)} / ${fmt(snap.safeDailyCap)}`;
-    elChirpQuotaText.textContent = `Chirp 3 HD الشهري: ${fmt(snap.chirpMonthlyChars)} / ${fmt(snap.safeMonthlyCap)} حرف (اليوم: ${dailyLabel})`;
-    elCacheSavedText.textContent = `تم توفير: ${fmt(snap.chirpSavedCacheChars + snap.chirpSavedCleanChars)} حرف`;
-    elChirpBar.style.width = `${pct}%`;
-    const discussDailyLabel = bypassed ? `${snap.geminiDailyRequests} (الحد اليومي مفتوح)` : `${snap.geminiDailyRequests} / ${snap.geminiDailyCap} طلب`;
+    const remoteUsage = remoteStatus?.usage;
+    const usingGeminiTts = settings.ttsEngine === 'gemini-tts' ||
+      (remoteStatus?.secretsConfigured && !remoteStatus.secretsConfigured.googleTts);
+
+    if (usingGeminiTts && remoteUsage) {
+      const used = Number(remoteUsage.geminiTtsDailyRequests) || 0;
+      const cap = Number(remoteUsage.geminiTtsDailyCap) || 30;
+      const pct = Math.min(100, Math.round((used / Math.max(1, cap)) * 100));
+      elChirpQuotaText.textContent = bypassed
+        ? `Gemini TTS المجاني اليوم: ${used} صفحة (الحد اليومي مفتوح)`
+        : `Gemini TTS المجاني اليوم: ${used} / ${cap} صفحة (0.00$)`;
+      elCacheSavedText.textContent = `تم توفير: ${fmt(snap.chirpSavedCacheChars + snap.chirpSavedCleanChars)} حرف`;
+      elChirpBar.style.width = `${pct}%`;
+    } else {
+      const usedM = remoteUsage ? Number(remoteUsage.chirpMonthlyChars) : snap.chirpMonthlyChars;
+      const capM = remoteUsage ? Number(remoteUsage.chirpMonthlyCap) : snap.safeMonthlyCap;
+      const usedD = remoteUsage ? Number(remoteUsage.chirpDailyChars) : snap.chirpDailyChars;
+      const capD = remoteUsage ? Number(remoteUsage.chirpDailyCap) : snap.safeDailyCap;
+      const pct = Math.min(100, Math.round((usedM / Math.max(1, capM)) * 100));
+      const dailyLabel = bypassed ? `${fmt(usedD)} — مفتوح` : `${fmt(usedD)} / ${fmt(capD)}`;
+      elChirpQuotaText.textContent = `Chirp 3 HD الشهري: ${fmt(usedM)} / ${fmt(capM)} حرف (اليوم: ${dailyLabel})`;
+      elCacheSavedText.textContent = `تم توفير: ${fmt(snap.chirpSavedCacheChars + snap.chirpSavedCleanChars)} حرف`;
+      elChirpBar.style.width = `${pct}%`;
+    }
+
+    const gemUsed = remoteUsage ? Number(remoteUsage.geminiDailyRequests) : snap.geminiDailyRequests;
+    const gemCap = remoteUsage ? Number(remoteUsage.geminiDailyCap) : snap.geminiDailyCap;
+    const discussDailyLabel = bypassed ? `${gemUsed} (الحد اليومي مفتوح)` : `${gemUsed} / ${gemCap} طلب`;
     elDiscussQuotaText.textContent = `Gemini المجاني اليوم: ${discussDailyLabel} (توفير الكاش: ${snap.geminiSavedCacheRequests})`;
     [elBypassDailyBtn, elDiscussBypassBtn].forEach(btn => {
       if (!btn) return;
@@ -1122,10 +1207,17 @@
   function openDock(tabName = 'read') {
     dock.hidden = false;
     renderQuotaUI();
+    refreshRemoteStatus();
     switchTab(tabName);
     const panel = document.getElementById('reader-tools-panel');
     if (panel) panel.hidden = true;
   }
+
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && playback.isPlaying && playback.chunks[playback.chunkIndex]) {
+      syncVisualPageToChunk(playback.chunks[playback.chunkIndex]);
+    }
+  });
 
   // --- Wire Events ---
   dock.querySelectorAll('.vai-tab').forEach(btn => {

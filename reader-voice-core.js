@@ -16,7 +16,7 @@
     CHIRP3_SAFE_DAILY_CAP: 30000,      // Spreads monthly budget across 30 days
     GEMINI_SAFE_DAILY_REQUESTS: 20,    // Conservative free-tier daily cap
     GEMINI_MIN_INTERVAL_MS: 6000,      // Prevents RPM burst throttling on free tier
-    GEMINI_MAX_CONTEXT_CHARS: 1400,    // Current page excerpt cap to save input tokens
+    GEMINI_MAX_CONTEXT_CHARS: 1800,    // Current page + preceding context cap to save input tokens
     GEMINI_MAX_HISTORY_TURNS: 4,       // Rolling window of recent messages
     GEMINI_MAX_OUTPUT_TOKENS: 320,     // Concise mode output cap
     GEMINI_EXPANDED_OUTPUT_TOKENS: 1200, // Expanded in-depth discussion cap
@@ -74,6 +74,20 @@
 
     const savedChars = Math.max(0, originalLen - text.length);
     return { text, savedChars };
+  }
+
+  /**
+   * Strips markdown headings, bullet/numbered list markers, and formatting symbols
+   * from Gemini discussion replies so they sound natural when read aloud.
+   */
+  function cleanReplyForSpeech(raw) {
+    const text = String(raw || '')
+      .replace(/^#{1,6}\s+/gm, '')
+      .replace(/^\s*[-*•●▪]\s+/gm, '')
+      .replace(/^\s*[\d٠-٩]+[.)\-]\s+/gm, '')
+      .replace(/[*_`~>|]/g, '')
+      .replace(/\n{2,}/g, '.\n');
+    return cleanTextForTTS(text).text;
   }
 
   /**
@@ -387,6 +401,7 @@
     utcMonthKey,
     utcDayKey,
     cleanTextForTTS,
+    cleanReplyForSpeech,
     splitLongText,
     chunkParagraphs,
     hashKey,

@@ -534,8 +534,29 @@
     saveState();
   }
 
+  const GOOGLE_FONT_URLS = {
+    amiri: 'https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400;1,700&display=swap',
+    noto: 'https://fonts.googleapis.com/css2?family=Noto+Naskh+Arabic:wght@400;600;700&display=swap',
+    cairo: 'https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap',
+    tajawal: 'https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap',
+    almarai: 'https://fonts.googleapis.com/css2?family=Almarai:wght@400;700&display=swap',
+    lateef: 'https://fonts.googleapis.com/css2?family=Lateef:wght@400;600;700&display=swap'
+  };
+  const loadedGoogleFonts = new Set();
+  function ensureGoogleFontLoaded(font) {
+    const href = GOOGLE_FONT_URLS[font];
+    if (!href || loadedGoogleFonts.has(font)) return;
+    loadedGoogleFonts.add(font);
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = href;
+    link.onload = () => scheduleReflow();
+    document.head.appendChild(link);
+  }
+
   function applyFont(font) {
     state.font = font;
+    ensureGoogleFontLoaded(font);
     document.body.setAttribute('data-reader-font', font);
     document.querySelectorAll('.font-choice-btn').forEach(btn => {
       btn.classList.toggle('is-selected', btn.dataset.fontVal === font);

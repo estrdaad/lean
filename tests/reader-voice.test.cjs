@@ -9,6 +9,12 @@ test('cleanTextForTTS strips tatweel, footnotes, decorative lines, and extra spa
   assert.ok(res.savedChars > 10);
 });
 
+test('cleanReplyForSpeech strips markdown headings, bullets, and list markers', () => {
+  const raw = '### الفكرة الرئيسية\n- **أولاً**: اختبار الفرضيات.\n1. ثانياً: التعلم السريع.';
+  const clean = Core.cleanReplyForSpeech(raw);
+  assert.equal(clean, 'الفكرة الرئيسية أولاً: اختبار الفرضيات. ثانياً: التعلم السريع.');
+});
+
 test('chunkParagraphs merges short paragraphs and splits overly long ones safely', () => {
   const longSentence = 'هذه جملة عربية واضحة للاختبار. '.repeat(35);
   const { chunks, totalSavedByClean } = Core.chunkParagraphs([
@@ -94,6 +100,10 @@ test('QuotaTracker enforces Gemini Free Tier daily cap and RPM cooldown', () => 
   const blocked = tracker.canSpendGemini(t0 + 20000);
   assert.equal(blocked.allowed, false);
   assert.equal(blocked.reason, 'daily_cap');
+
+  // Allowed when daily cap is explicitly bypassed (after cooldown)
+  const bypassed = tracker.canSpendGemini(t0 + 20000, false);
+  assert.equal(bypassed.allowed, true);
 });
 
 test('buildGeminiPayload caps excerpt length, history turns, and output tokens', () => {
@@ -143,4 +153,34 @@ test('voice-bridge worker rejects over-limit text and enforces missing secret sa
   });
   const resTooLong = await worker.fetch(reqTooLong, { GOOGLE_TTS_API_KEY: 'dummy' });
   assert.equal(resTooLong.status, 400);
+});
+
+test('voice-bridge worker falls back across Gemini TTS models on 429 and returns x-tts-engine header', async () => {
+  const worker = (await import('../voice-bridge/worker.mjs')).default;
+  const origFetch = global.fetch;
+  const calledUrls = [];
+  global.fetch = async (url) => {
+    calledUrls.push(String(url));
+    if (calledUrls.length === 1) {
+      return new Response(JSON.stringify({ error: { message: 'Quota exceeded for model' } }), { status: 429 });
+    }
+    return new Response(JSON.stringify({
+      candidates: [{ content: { parts: [{ inlineData: { data: 'UklGRg==', mimeType: 'audio/wav' } }] } }]
+    }), { status: 200, headers: { 'content-type': 'application/json' } });
+  };
+  try {
+    const req = new Request('https://worker.test/tts', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', origin: 'https://estrdaad.github.io' },
+      body: JSON.stringify({ text: 'اختبار الصوت' })
+    });
+    const res = await worker.fetch(req, { GEMINI_API_KEY: 'test-key' });
+    assert.equal(res.status, 200);
+    assert.equal(res.headers.get('x-tts-engine'), 'gemini-tts');
+    assert.equal(calledUrls.length, 2);
+    assert.ok(calledUrls[0].includes('gemini-3.8-flash-lite-tts'));
+    assert.ok(calledUrls[1].includes('gemini-3.8-flash-tts'));
+  } finally {
+    global.fetch = origFetch;
+  }
 });
