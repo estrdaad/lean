@@ -35,7 +35,6 @@
       chirpDailyCap: Core.LIMITS.CHIRP3_SAFE_DAILY_CAP,
       geminiDailyCap: Core.LIMITS.GEMINI_SAFE_DAILY_REQUESTS,
       autoTurnPage: true,
-      fallbackToBrowserSpeech: true,
       conciseDiscussion: true,
       speakDiscussionReplies: false       // Off by default to save Chirp 3 HD quota
     };
@@ -393,27 +392,6 @@
     }
   }
 
-  function speakWithBrowserSpeech(text, rate = 1.0) {
-    return new Promise((resolve, reject) => {
-      if (!('speechSynthesis' in window)) {
-        return reject(new Error('المتصفح لا يدعم القراءة الصوتية المدمجة.'));
-      }
-      window.speechSynthesis.cancel();
-      const utter = new SpeechSynthesisUtterance(text);
-      utter.lang = 'ar-SA';
-      utter.rate = Math.min(2, Math.max(0.6, Number(rate) || 1));
-      const voices = window.speechSynthesis.getVoices();
-      const arVoice = voices.find(v => /^ar/i.test(v.lang));
-      if (arVoice) utter.voice = arVoice;
-      utter.onend = () => resolve();
-      utter.onerror = (e) => {
-        if (e.error === 'interrupted' || e.error === 'canceled') resolve();
-        else reject(new Error('تعذّر تشغيل صوت المتصفح.'));
-      };
-      window.speechSynthesis.speak(utter);
-    });
-  }
-
   // --- Playback State Machine (Reading Mode) ---
   const playback = {
     isPlaying: false,
@@ -439,7 +417,6 @@
       URL.revokeObjectURL(activeAudioUrl);
       activeAudioUrl = null;
     }
-    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
     prefetchMap.clear();
   }
 
@@ -460,8 +437,6 @@
     playback.isPaused = true;
     if (activeAudio && !activeAudio.paused) {
       activeAudio.pause();
-    } else if ('speechSynthesis' in window && window.speechSynthesis.speaking) {
-      window.speechSynthesis.pause();
     }
     updateReadUI();
   }
@@ -472,11 +447,6 @@
     playback.isPaused = false;
     if (activeAudio && activeAudio.paused && activeAudio.src) {
       activeAudio.play().catch(() => playCurrentChunk());
-      updateReadUI();
-      return;
-    }
-    if ('speechSynthesis' in window && window.speechSynthesis.paused) {
-      window.speechSynthesis.resume();
       updateReadUI();
       return;
     }
@@ -549,22 +519,8 @@
       prefetchNextChunk();
     } catch (err) {
       if (err.name === 'AbortError' || !playback.isPlaying) return;
-      if (settings.fallbackToBrowserSpeech) {
-        playback.activeEngine = 'browser';
-        setReadStatus(`${err.message} — تم التحويل تلقائيًا لصوت المتصفح المجاني.`);
-        try {
-          await speakWithBrowserSpeech(chunk.text, settings.speakingRate);
-          if (!playback.isPlaying) return;
-          playback.chunkIndex += 1;
-          playCurrentChunk();
-        } catch (fallbackErr) {
-          stopReading(false);
-          setReadStatus(fallbackErr.message);
-        }
-      } else {
-        stopReading(false);
-        setReadStatus(err.message);
-      }
+      stopReading(false);
+      setReadStatus(err.message);
     }
   }
 
@@ -715,14 +671,13 @@
     const clean = Core.cleanTextForTTS(text).text.slice(0, Core.LIMITS.CHUNK_MAX_CHARS);
     if (!clean) return;
     try {
-      const res = await synthesizeChirp3(clean);
+      const res = await synthesizeSelectedEngine(clean);
       activeAudioUrl = URL.createObjectURL(res.blob);
-      activeAudio = new Audio(activeAudioUrl);
+      activeAudio = sharedAudio;
+      activeAudio.src = activeAudioUrl;
       await activeAudio.play();
-    } catch {
-      if (settings.fallbackToBrowserSpeech) {
-        speakWithBrowserSpeech(clean, settings.speakingRate).catch(() => {});
-      }
+    } catch (err) {
+      setReadStatus(err.message);
     }
   }
 
@@ -807,7 +762,7 @@
           <div class="vai-field">
             <label for="vai-set-engine">محرك القراءة الصوتية</label>
             <select id="vai-set-engine">
-              <option value="auto">تلقائي: Chirp 3 HD ← Gemini TTS المجاني ← المتصفح</option>
+              <option value="auto">تلقائي: Chirp 3 HD ← Gemini TTS المجاني</option>
               <option value="chirp3">Google Cloud Chirp 3: HD فقط</option>
               <option value="gemini-tts">Gemini 3.8 Flash-Lite TTS (مجاني دون بطاقة)</option>
             </select>
@@ -824,7 +779,6 @@
             <label for="vai-set-rate">سرعة القراءة (<span id="vai-rate-label">1.0x</span>)</label>
             <input id="vai-set-rate" type="range" min="0.75" max="1.6" step="0.05" value="1">
           </div>
-          <label class="vai-check-row"><input type="checkbox" id="vai-set-fallback">التحويل تلقائيًا لصوت المتصفح المجاني عند بلوغ الحد الآمن أو انقطاع الشبكة</label>
           <label class="vai-check-row"><input type="checkbox" id="vai-set-autoturn">تقليب الصفحة تلقائيًا عند انتهاء قراءتها</label>
           <label class="vai-check-row"><input type="checkbox" id="vai-set-concise">إجابات Gemini مختصرة (توفّر حتى 60% من استهلاك الجلسة المجانية)</label>
           <label class="vai-check-row"><input type="checkbox" id="vai-set-speak-reply">قراءة ردود Gemini صوتيًا تلقائيًا (تستهلك من رصيد الصوت)</label>
@@ -926,7 +880,6 @@
     dock.querySelector('#vai-set-model').value = settings.geminiModel;
     dock.querySelector('#vai-set-rate').value = settings.speakingRate;
     dock.querySelector('#vai-rate-label').textContent = `${Number(settings.speakingRate).toFixed(2)}x`;
-    dock.querySelector('#vai-set-fallback').checked = !!settings.fallbackToBrowserSpeech;
     dock.querySelector('#vai-set-autoturn').checked = !!settings.autoTurnPage;
     dock.querySelector('#vai-set-concise').checked = !!settings.conciseDiscussion;
     dock.querySelector('#vai-set-speak-reply').checked = !!settings.speakDiscussionReplies;
@@ -991,7 +944,6 @@
       chirpVoice: dock.querySelector('#vai-set-voice').value,
       geminiModel: dock.querySelector('#vai-set-model').value,
       speakingRate: Number(dock.querySelector('#vai-set-rate').value) || 1,
-      fallbackToBrowserSpeech: dock.querySelector('#vai-set-fallback').checked,
       autoTurnPage: dock.querySelector('#vai-set-autoturn').checked,
       conciseDiscussion: dock.querySelector('#vai-set-concise').checked,
       speakDiscussionReplies: dock.querySelector('#vai-set-speak-reply').checked
